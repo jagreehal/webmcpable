@@ -18,6 +18,6 @@
     "@playwright/test": "1.62.1",
     "oxlint": "1.80.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^4.1.11"
   }
 }
