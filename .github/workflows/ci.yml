@@ -94,7 +94,7 @@ jobs:
 
       - name: Report the measurements
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: chrome-conformance
           path: packages/webmcpable/e2e/CHROME-CONFORMANCE.md
