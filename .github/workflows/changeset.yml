@@ -1,0 +1,42 @@
+name: Changeset
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  changeset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check for changeset
+        run: |
+          # A release PR consumes changesets and adds none, so this guard can
+          # never pass on one. Deleted .changeset/*.md identifies it.
+          if git diff --diff-filter=D --name-only origin/main...HEAD \
+            | grep -qE '^\.changeset/.+\.md$'; then
+            echo "Release PR — changesets consumed, skipping guard."
+            exit 0
+          fi
+          pnpm changeset status --since=origin/main

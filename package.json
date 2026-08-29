@@ -1,0 +1,23 @@
+{
+  "name": "webmcpable-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test:run",
+    "typecheck": "pnpm -r typecheck",
+    "changeset": "changeset",
+    "version-packages": "changeset version && pnpm install --lockfile-only",
+    "release": "pnpm build && changeset publish",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.1",
+    "@nkzw/oxlint-config": "2.0.0",
+    "@playwright/test": "1.62.1",
+    "oxlint": "1.80.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
+  }
+}

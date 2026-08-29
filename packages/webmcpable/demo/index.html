@@ -1,0 +1,19 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>webmcpable demo</title>
+<style>
+  body { font: 15px/1.6 system-ui, sans-serif; margin: 3rem; max-width: 40rem }
+  code { background: #f3f3f3; padding: 1px 5px; border-radius: 4px }
+  li { margin: .3rem 0 }
+</style>
+<h1>webmcpable demo</h1>
+<p>Four tools are registered. Two are deliberately broken so the panel has something to catch.</p>
+<ul>
+  <li><code>search_products</code> — well formed</li>
+  <li><code>add_to_cart</code> — returns an MCP envelope (the papercut)</li>
+  <li><code>clear_cart</code> — returns <code>undefined</code>, thin description, invented annotation</li>
+  <li><code>view_cart</code> — probe: uses <code>readOnlyHint</code>, which the draft does define</li>
+  <li><code>checkout</code> — <code>when:</code> gated on a non-empty cart</li>
+</ul>
+<p><button id="add">Add an item to the cart</button> <span id="count">cart: 0</span></p>
+<script type="module" src="./main.ts"></script>

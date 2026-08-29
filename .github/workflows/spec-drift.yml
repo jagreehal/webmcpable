@@ -1,0 +1,33 @@
+name: spec drift
+
+# The draft can change without a browser release. This job reports WebIDL drift
+# against the live spec. CI covers everything that does not need the network.
+on:
+  schedule:
+    - cron: '0 7 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spec-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Compare pinned WebIDL against the live draft
+        run: pnpm --filter webmcpable spec-check

@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>webmcpable conformance harness</title>
+<h1>webmcpable conformance harness</h1>
+<p>Loads the built bundle the way a consumer does, then hands it to Playwright.</p>
+<script type="module">
+  // The real build, not the source: the lane verifies what actually ships.
+  import { tools, isSupported } from '/dist/index.js'
+  window.webmcpable = { isSupported, tools }
+  document.title = 'ready'
+</script>

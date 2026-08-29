@@ -1,0 +1,130 @@
+{
+  "name": "webmcpable",
+  "version": "0.1.0",
+  "description": "Let AI agents use your web app. WebMCP tools that mirror what the user can actually do right now.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "webmcpable": "./dist/cli.mjs"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.js"
+    },
+    "./svelte": {
+      "types": "./dist/svelte.svelte.d.ts",
+      "import": "./dist/svelte.svelte.js"
+    },
+    "./effect": {
+      "types": "./dist/effect.d.ts",
+      "import": "./dist/effect.js"
+    },
+    "./debug": {
+      "types": "./dist/debug.d.ts",
+      "import": "./dist/debug.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
+    }
+  },
+  "scripts": {
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "build": "tsdown",
+    "prepack": "cp ../../README.md README.md && cp ../../LICENSE LICENSE",
+    "prepublishOnly": "pnpm build",
+    "spec-check": "pnpm build && node dist/cli.mjs spec-check",
+    "spec-pin": "pnpm build && node dist/cli.mjs spec-pin",
+    "test:conformance": "pnpm build && playwright test"
+  },
+  "dependencies": {
+    "webmcp-types": "0.1.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@standard-schema/spec": "^1.1.0",
+    "@sveltejs/vite-plugin-svelte": "7.3.0",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/svelte": "5.4.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.0",
+    "@vitejs/plugin-vue": "6.0.8",
+    "@vue/test-utils": "2.4.11",
+    "autotel-web": "^1.13.1",
+    "effect": "4.0.0-rc.112",
+    "executable-stories-playwright": "8.9.0",
+    "happy-dom": "20.11.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "svelte": "5.56.10",
+    "tsdown": "0.22.14",
+    "typescript": "^5.9.3",
+    "unrun": "^0.3.1",
+    "vite": "8.2.2",
+    "vitest": "^3.2.7",
+    "vue": "3.5.41",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "effect": "^4.0.0-rc",
+    "react": ">=18",
+    "svelte": ">=5",
+    "vue": ">=3.4"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    },
+    "svelte": {
+      "optional": true
+    },
+    "effect": {
+      "optional": true
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jagreehal/webmcpable.git",
+    "directory": "packages/webmcpable"
+  },
+  "homepage": "https://github.com/jagreehal/webmcpable",
+  "bugs": "https://github.com/jagreehal/webmcpable/issues",
+  "keywords": [
+    "webmcp",
+    "mcp",
+    "ai",
+    "agents",
+    "tools",
+    "model-context-protocol",
+    "document.modelContext",
+    "react",
+    "vue",
+    "svelte",
+    "effect",
+    "w3c"
+  ],
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "webmcp-idl.snapshot.json"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts"
+}

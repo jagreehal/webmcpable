@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@latest --activate
+
+      - name: Locate pnpm store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache pnpm dependencies
+        uses: actions/cache@v6
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      # Not the repo root: demo/ ships deliberately wrong tools to show what
+      # the doctor catches, so scanning it would always fail the build.
+      - name: Scan for WebMCP drift in our own source
+        run: node packages/webmcpable/dist/cli.mjs doctor packages/webmcpable/src
+
+  # The unit suite runs against a hand-written copy of Chrome's behaviour. This
+  # job drives the real thing, so the copy can be checked rather than trusted.
+  # Separate from build-and-test because it needs a Chrome that ships WebMCP.
+  conformance:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install pnpm
+        run: corepack prepare pnpm@latest --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      # Playwright's `chrome` channel installs Google Chrome stable. WebMCP
+      # needs 152 or newer; the lane asserts the version before it measures.
+      - name: Install Google Chrome
+        run: pnpm --filter webmcpable exec playwright install --with-deps chrome
+
+      - name: Measure against real Chrome
+        run: pnpm --filter webmcpable test:conformance
+
+      - name: Report the measurements
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: chrome-conformance
+          path: packages/webmcpable/e2e/CHROME-CONFORMANCE.md
+          if-no-files-found: ignore

@@ -1,0 +1,9 @@
+[
+  "partial interface Document {\n[SecureContext, SameObject] readonly attribute ModelContext modelContext;\n};",
+  "[Exposed=Window, SecureContext]\ninterface ModelContext : EventTarget {\nPromise<undefined> registerTool(ModelContextTool tool, optional ModelContextRegisterToolOptions options = {});\nPromise<sequence<RegisteredTool>> getTools(optional ModelContextGetToolOptions options = {});\nPromise<DOMString> executeTool(RegisteredTool tool, optional object inputObject = {}, optional ModelContextExecuteToolOptions options = {});\nattribute EventHandler ontoolchange;\n};",
+  "dictionary ModelContextTool {\nrequired DOMString name;\n// Because `title` is for display in possibly native UIs, this must be a `USVString`.\n// See https://w3ctag.github.io/design-principles/#idl-string-types.\nUSVString title;\nrequired DOMString description;\nobject inputSchema;\nrequired ToolExecuteCallback execute;\nToolAnnotations annotations;\n};\ndictionary ToolAnnotations {\nboolean readOnlyHint = false;\nboolean untrustedContentHint = false;\n};\ndictionary ToolExecuteCallbackOptions {\nrequired AbortSignal signal;\n};\ncallback ToolExecuteCallback = Promise<any> (object inputObject, ToolExecuteCallbackOptions options);",
+  "dictionary ModelContextRegisterToolOptions {\nsequence<USVString> exposedTo;\nAbortSignal signal;\n};",
+  "dictionary ModelContextGetToolOptions {\nsequence<USVString> fromOrigins;\n};",
+  "dictionary ModelContextExecuteToolOptions {\nAbortSignal signal;\n};",
+  "dictionary RegisteredTool {\nrequired DOMString name;\n// `title` can be exposed as a `DOMString` since it was taken in by a\n// `USVString`, meaning all unmatched surrogate processing has already been\n// done, and there's no need to do it again on tool exposure.\nDOMString title;\nrequired DOMString description;\nobject inputSchema;\nrequired Window window;\nrequired USVString origin;\nToolAnnotations annotations;\n};"
+]

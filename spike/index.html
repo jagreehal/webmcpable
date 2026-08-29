@@ -1,0 +1,166 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>affordance spike v4</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, monospace; margin: 2rem; max-width: 72rem }
+  h2 { font-size: 1rem; margin-top: 1.8rem }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 1rem }
+  th, td { border: 1px solid #ccc; padding: .35rem .5rem; text-align: left; vertical-align: top }
+  th { background: #f4f4f4 } td.v { white-space: pre-wrap; word-break: break-all }
+  pre { background: #f7f7f7; padding: .6rem; overflow-x: auto; white-space: pre-wrap }
+  .bad { color: #b00 } .good { color: #070; font-weight: bold }
+  #env, #err { padding: .6rem } #env { background: #f4f4f4 }
+  #err { background: #fee; color: #b00; display: none }
+</style>
+<div id="env">detecting…</div>
+<pre id="err"></pre>
+
+<h2>0 — API surface</h2>
+<pre id="api">—</pre>
+<h2>1 — registerTool + getTools</h2>
+<pre id="shape">—</pre>
+<h2>2 — input argument encoding (document.modelContext.executeTool)</h2>
+<table><thead><tr><th>#</th><th>encoding</th><th>value</th><th>result</th></tr></thead><tbody id="a"></tbody></table>
+<h2>3 — navigator.modelContextTesting path</h2>
+<table><thead><tr><th>call</th><th>result</th></tr></thead><tbody id="t"></tbody></table>
+<h2>4 — return-value convention</h2>
+<table><thead><tr><th>handler returns</th><th>via</th><th>typeof</th><th>resolved value</th></tr></thead><tbody id="b"></tbody></table>
+
+<script type="module">
+const errBox = document.getElementById('err');
+function fatal(where, e) {
+  errBox.style.display = 'block';
+  errBox.textContent += `[${where}] ${e?.name ?? ''}: ${e?.message ?? e}\n${e?.stack ?? ''}\n\n`;
+}
+addEventListener('error', (e) => fatal('window.error', e.error ?? e.message));
+addEventListener('unhandledrejection', (e) => fatal('unhandledrejection', e.reason));
+
+const mc = document.modelContext;
+document.getElementById('env').innerHTML = mc
+  ? `<span class="good">document.modelContext present</span> — ${navigator.userAgent}`
+  : `<span class="bad">MISSING</span>`;
+if (!mc) throw new Error('no document.modelContext');
+
+const dump = (o) => {
+  if (!o) return String(o);
+  const p = Object.getPrototypeOf(o);
+  return `${p.constructor?.name}\n` + Object.getOwnPropertyNames(p).map((k) => {
+    const d = Object.getOwnPropertyDescriptor(p, k);
+    return `  ${k}: ${typeof d.value === 'function' ? `function (arity ${d.value.length})` : d.get ? 'getter' : typeof d.value}`;
+  }).join('\n');
+};
+const mct = navigator.modelContextTesting;
+document.getElementById('api').textContent =
+  `document.modelContext -> ${dump(mc)}\n\n` +
+  `navigator.modelContext === document.modelContext : ${navigator.modelContext === mc}\n\n` +
+  `navigator.modelContextTesting -> ${dump(mct)}`;
+
+const controller = new AbortController();
+let n = 0;
+const SCHEMA = { type: 'object', properties: { q: { type: 'string' } } };
+
+async function register(name, execute, annotations) {
+  try {
+    const tool = { name, description: `spike ${name}`, inputSchema: SCHEMA, execute };
+    if (annotations) tool.annotations = annotations;
+    const r = mc.registerTool(tool, { signal: controller.signal });
+    if (r && typeof r.then === 'function') await r;
+    return { ok: true };
+  } catch (e) { return { ok: false, error: `${e.name}: ${e.message}` }; }
+}
+function add(id, cells, cls = '') {
+  const tr = document.createElement('tr');
+  tr.innerHTML = cells.map((c, i) => `<td class="${i === cells.length - 1 ? 'v ' + cls : ''}">${c}</td>`).join('');
+  document.getElementById(id).append(tr);
+}
+
+// ---- 1 ----
+const reg = await register('probe', async () => 'OK', { readOnlyHint: true, destructiveHint: true });
+let shape = `registerTool('probe'): ${reg.ok ? 'OK' : 'FAILED — ' + reg.error}\n`;
+let probe = null;
+try {
+  const tools = await mc.getTools();
+  shape += `getTools(): ${tools.length} tool(s)\n`;
+  probe = tools.find((t) => t.name === 'probe') ?? null;
+  if (probe) {
+    // A RegisteredTool holds an owner `window`, so JSON.stringify throws.
+    // Pick fields explicitly to see what the browser actually kept.
+    const safe = {};
+    for (const k of Object.keys(probe)) {
+      const v = probe[k];
+      safe[k] = (v && typeof v === 'object' && 'document' in v) ? '[Window]' : v;
+    }
+    shape += `\nprobe (fields picked individually):\n${JSON.stringify(safe, null, 2)}`;
+    shape += `\n\nkeys: ${Object.keys(probe).join(', ')}`;
+    shape += `\n\nannotations sent:     {"readOnlyHint":true,"destructiveHint":true}`;
+    shape += `\nannotations returned: ${JSON.stringify(probe.annotations ?? null)}`;
+  } else {
+    shape += `\nprobe NOT found in getTools()`;
+  }
+} catch (e) { shape += `getTools() threw: ${e.name}: ${e.message}`; }
+document.getElementById('shape').textContent = shape;
+
+// ---- 2 ----
+const ENCODINGS = [
+  ['object',              { q: 'x' }],
+  ['JSON string',         JSON.stringify({ q: 'x' })],
+  ['JSON string empty',   '{}'],
+  ['empty string',        ''],
+  ['null',                null],
+  ['object empty',        {}],
+];
+let working = undefined;
+if (probe) {
+  for (const [label, arg] of ENCODINGS) {
+    try {
+      const v = await mc.executeTool(probe, arg);
+      add('a', [++n, label, JSON.stringify(arg), `<span class="good">resolved: ${JSON.stringify(v)}</span>`]);
+      if (working === undefined) working = arg;
+    } catch (e) { add('a', [++n, label, JSON.stringify(arg), `${e.name}: ${e.message}`], 'bad'); }
+  }
+} else add('a', ['—', '—', '—', 'no probe tool'], 'bad');
+
+// ---- 3 ----
+if (mct) {
+  for (const [label, fn] of [
+    ['listTools()',              () => mct.listTools?.()],
+    ['getTools()',               () => mct.getTools?.()],
+    ["callTool('probe',{q:'x'})",() => mct.callTool?.('probe', { q: 'x' })],
+    ["callTool('probe','{}')",   () => mct.callTool?.('probe', '{}')],
+  ]) {
+    try {
+      const v = await fn();
+      add('t', [label, `<span class="good">${JSON.stringify(v)}</span>`]);
+    } catch (e) { add('t', [label, `${e.name}: ${e.message}`], 'bad'); }
+  }
+} else add('t', ['—', 'navigator.modelContextTesting absent'], 'bad');
+
+// ---- 4 ----
+const CASES = [
+  ['string',       () => 'hello'],
+  ['mcp envelope', () => ({ content: [{ type: 'text', text: 'hello' }] })],
+  ['plain object', () => ({ a: 1, b: [2, 3] })],
+  ['number',       () => 42],
+  ['empty string', () => ''],
+  ['whitespace',   () => ' '],
+  ['zero',         () => 0],
+  ['false',        () => false],
+  ['undefined',    () => undefined],
+  ['null',         () => null],
+  ['throws',       () => { throw new Error('boom'); }],
+];
+for (const [label, fn] of CASES) {
+  const name = `ret_${n++}`;
+  const r = await register(name, async () => fn());
+  if (!r.ok) { add('b', [label, '—', '—', 'register failed: ' + r.error], 'bad'); continue; }
+  const tool = (await mc.getTools()).find((t) => t.name === name);
+  if (working !== undefined) {
+    try { const v = await mc.executeTool(tool, working); add('b', [label, 'executeTool', typeof v, JSON.stringify(v)]); }
+    catch (e) { add('b', [label, 'executeTool', '—', `${e.name}: ${e.message}`], 'bad'); }
+  }
+  if (mct?.callTool) {
+    try { const v = await mct.callTool(name, { q: 'x' }); add('b', [label, 'mct.callTool', typeof v, JSON.stringify(v)]); }
+    catch (e) { add('b', [label, 'mct.callTool', '—', `${e.name}: ${e.message}`], 'bad'); }
+  }
+}
+</script>
