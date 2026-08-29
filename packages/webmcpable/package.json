@@ -1,6 +1,6 @@
 {
   "name": "webmcpable",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Let AI agents use your web app. WebMCP tools that mirror what the user can actually do right now.",
   "type": "module",
   "license": "MIT",
