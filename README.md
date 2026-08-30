@@ -11,6 +11,11 @@ user's session.
 npm install webmcpable
 ```
 
+Writing these tools with a coding agent? The package ships
+[`SKILL.md`](./packages/webmcpable/SKILL.md) — point your agent at
+`node_modules/webmcpable/SKILL.md`, or copy it to
+`.claude/skills/webmcpable/SKILL.md`.
+
 ## What WebMCP is
 
 Ask an agent to buy something and watch what it does. It screenshots the page,
@@ -265,6 +270,44 @@ yield* registry.mount
 `effectTools` accepts Effect handlers and preserves typed failures. A change to
 a watched ref triggers revalidation. Closing the scope unregisters the tools.
 
+## The same tools, on-device
+
+Chrome ships a second model surface: the [Prompt API](https://developer.chrome.com/docs/ai/prompt-api),
+Gemini Nano running in the page. Behind `chrome://flags#prompt-api-tool-use` it
+takes tools — and the shape it takes them in is the one you have already
+written.
+
+```ts
+import { localTools } from 'webmcpable/local'
+
+const session = await LanguageModel.create({
+  tools: localTools(defs),
+})
+
+await session.prompt('Add two coffees to my cart and check out.')
+```
+
+`defs` is the same object you pass to `tools()`. Declare an action once and it
+is available in both directions: outward to a remote agent through
+`document.modelContext`, and inward to a model with no network at all. `when`
+gating, input validation and the `confirm` gate behave identically on both
+paths — a tool the user cannot reach does not become reachable because the
+model asking for it happens to live in the page.
+
+Two differences from a registry. There is nothing to revalidate: a session
+holds the tools it was created with, so build the array again per `create()`
+(or per `clone()`) to pick up a change — a tool whose `when` turned false
+meanwhile still refuses at call time, so a stale array cannot run something the
+user can no longer do. And `exposedTo` and `annotations` are WebMCP's, so the
+Prompt API ignores them, except `readOnlyHint`, which still decides whether
+`confirm` asks.
+
+Everything else in this README is measured against a real Chrome. This is not:
+tool use is undocumented outside the
+[explainer](https://github.com/webmachinelearning/prompt-api), and the
+conformance lane cannot run it without a Canary and a model download. Treat the
+shape as the explainer's until that changes.
+
 ## Test without a supporting browser
 
 `webmcpable/testing` installs an in-memory `document.modelContext`, so your
@@ -417,6 +460,9 @@ the current document tree need access — exact secure origins only, measured in
 Chrome refuses plain `http:` and has no wildcard. Pass `{ titles: 'off' }` to withhold
 `title` from the browser, and `confirm` (a function, or `true` for
 `window.confirm`) to ask before a mutating tool runs.
+
+`localTools()` takes the same definitions and returns a plain array for
+`LanguageModel.create({ tools })` — no registry, no lifecycle.
 
 `input` accepts Zod 4 and ArkType schemas and converts them to JSON Schema for
 you. It also accepts raw JSON Schema, which `webmcpable` passes through without

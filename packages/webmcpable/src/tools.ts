@@ -198,6 +198,54 @@ export const descriptorKey = (
     def.exposedTo,
   ])
 
+/**
+ * Everything that happens between an agent choosing a tool and the handler
+ * running: validate, re-check `when`, ask the user, flatten the result.
+ *
+ * Shared so the on-device Prompt API path (`webmcpable/local`) refuses and
+ * confirms exactly like the WebMCP one. A tool the user cannot reach must not
+ * become reachable because the model asking for it happens to live in the page.
+ */
+export function toolExecutor(
+  name: string,
+  def: ToolDef,
+  options: RegistryOptions = {},
+  descriptorChanged: () => boolean = () => false,
+): (input: unknown, callOptions: { signal: AbortSignal }) => Promise<string> {
+  const title = effectiveTitle(def, options.titles)
+  return async (raw, callOptions) => {
+    const parsed = await validate(def.input, raw)
+    // Chrome discards thrown messages, so a validation failure has to be
+    // *returned* as text or the agent learns nothing.
+    if ('error' in parsed) {return parsed.error}
+    return toToolResult(async () => {
+      // `when` is what makes the tool list mirror the UI. Checking it
+      // only at registration leaves a window between revalidations
+      // where a tool the user can no longer reach is still callable.
+      const why = refusal(name, availability(def))
+      if (why) {
+        // Refuse only. Unregistering here would abort this tool's
+        // registration while the call is still in flight, and Chrome
+        // fails the whole invocation with a transient UnknownError
+        // instead of delivering this message. The list corrects itself
+        // on the next revalidate, which every adapter already drives.
+        return why
+      }
+      if (def.annotations?.readOnlyHint !== true && options.confirm) {
+        const ok = await invokeConfirm(options.confirm, {
+          description: def.description,
+          descriptorChanged: descriptorChanged(),
+          input: parsed.value,
+          name,
+          ...(title !== undefined && { title }),
+        })
+        if (!ok) {return `${name} was not confirmed.`}
+      }
+      return def.execute(validated(parsed.value), callOptions)
+    })
+  }
+}
+
 export function tools<T extends Record<string, InputSchema | undefined>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
   options?: RegistryOptions,
@@ -222,37 +270,9 @@ export function tools(defs: Record<string, ToolDef>, options: RegistryOptions = 
           ...(title !== undefined && { title }),
           inputSchema: toJsonSchema(def.input),
           ...(def.annotations && { annotations: def.annotations }),
-          execute: async (raw: unknown, callOptions: { signal: AbortSignal }) => {
-            const parsed = await validate(def.input, raw)
-            // Chrome discards thrown messages, so a validation failure has to be
-            // *returned* as text or the agent learns nothing.
-            if ('error' in parsed) {return parsed.error}
-            return toToolResult(async () => {
-              // `when` is what makes the tool list mirror the UI. Checking it
-              // only at registration leaves a window between revalidations
-              // where a tool the user can no longer reach is still callable.
-              const why = refusal(name, availability(def))
-              if (why) {
-                // Refuse only. Unregistering here would abort this tool's
-                // registration while the call is still in flight, and Chrome
-                // fails the whole invocation with a transient UnknownError
-                // instead of delivering this message. The list corrects itself
-                // on the next revalidate, which every adapter already drives.
-                return why
-              }
-              if (def.annotations?.readOnlyHint !== true && options.confirm) {
-                const ok = await invokeConfirm(options.confirm, {
-                  description: def.description,
-                  descriptorChanged: firstSeen.get(name) !== descriptorKey(name, def, options.titles),
-                  input: parsed.value,
-                  name,
-                  ...(title !== undefined && { title }),
-                })
-                if (!ok) {return `${name} was not confirmed.`}
-              }
-              return def.execute(validated(parsed.value), callOptions)
-            })
-          },
+          execute: toolExecutor(name, def, options, () =>
+            firstSeen.get(name) !== descriptorKey(name, def, options.titles),
+          ),
         } as WebMCP.ModelContextTool,
         {
           signal: controller.signal,
