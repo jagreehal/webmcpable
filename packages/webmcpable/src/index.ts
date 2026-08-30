@@ -1,5 +1,5 @@
-export { tools } from './tools'
-export type { InputSchema, Registry, ToolDef } from './tools'
+export { formatConfirmPrompt, invokeConfirm, tools } from './tools'
+export type { ConfirmCall, InputSchema, Registry, RegistryOptions, ToolDef } from './tools'
 export { toToolResult } from './result'
 export { isSupported } from './model-context'
 export { readInputSchema } from './schema'

@@ -17,7 +17,15 @@ export interface ReportRow {
   tool: InspectedTool
 }
 
+export interface CallRecord {
+  error?: string | undefined
+  input: string
+  name: string
+  result?: string | undefined
+}
+
 export interface ReportEnvironment {
+  calls?: ReadonlyArray<CallRecord>
   supported: boolean
   userAgent: string
 }
@@ -35,9 +43,20 @@ export function buildReport(env: ReportEnvironment, rows: ReadonlyArray<ReportRo
     '',
   ]
 
+  if (env.calls && env.calls.length > 0) {
+    lines.push('## calls', '')
+    for (const call of env.calls) {
+      const outcome = call.result ?? call.error ?? ''
+      lines.push(`- \`${call.name}\` \`${call.input}\` → ${outcome}`)
+    }
+    lines.push('')
+  }
+
   for (const row of rows) {
     const annotations = row.tool.annotations ?? {}
-    lines.push(`### ${row.tool.name}`, '', `- description: ${row.tool.description ?? '(none)'}`, `- annotations kept: ${
+    lines.push(`### ${row.tool.name}`, '', `- description: ${row.tool.description ?? '(none)'}`, `- title: ${
+        row.tool.title ? row.tool.title : '(none)'
+      }`, `- annotations kept: ${
         Object.keys(annotations).length > 0 ? `\`${JSON.stringify(annotations)}\`` : 'none'
       }`, ...row.findings.map(finding))
     if (row.lastInput !== undefined) {lines.push(`- input: \`${row.lastInput}\``)}

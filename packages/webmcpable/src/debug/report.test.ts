@@ -51,6 +51,21 @@ describe('buildReport', () => {
     expect(out).toMatch(/rejected.*UnknownError: nope/)
   })
 
+  it('records a journal of resolved calls, not labels', () => {
+    const out = buildReport(
+      {
+        ...env,
+        calls: [
+          { input: '{"address":"PO Box 1"}', name: 'update_shipping_address', result: 'shipped' },
+        ],
+      },
+      [row()],
+    )
+    expect(out).toContain('## calls')
+    expect(out).toContain('update_shipping_address')
+    expect(out).toContain('{"address":"PO Box 1"}')
+  })
+
   it('reports every field the panel displays, so the two cannot drift', () => {
     const out = buildReport(env, [
       row({
@@ -59,7 +74,7 @@ describe('buildReport', () => {
         tool: { annotations: { readOnlyHint: true }, description: 'd', inputSchema: { type: 'object' }, name: 'a' },
       }),
     ])
-    for (const expected of ['a', 'description:', 'annotations kept:', 'input:', 'agent receives:']) {
+    for (const expected of ['a', 'description:', 'title:', 'annotations kept:', 'input:', 'agent receives:']) {
       expect(out).toContain(expected)
     }
   })

@@ -53,11 +53,11 @@ test('a handler result reaches the agent as a string', async ({ page }, testInfo
   const results = await page.evaluate(async () => {
     const { tools } = window.webmcpable
     await tools({
-      envelope: { description: 'Returns an MCP envelope', handler: () => ({ content: [{ text: 'hi', type: 'text' }] }) },
-      object: { description: 'Returns a plain object', handler: () => ({ a: 1 }) },
-      text: { description: 'Returns a string', handler: () => 'Added' },
-      thrower: { description: 'Throws an error', handler: () => { throw new Error('out of stock') } },
-      voider: { description: 'Returns undefined', handler: () => undefined },
+      envelope: { description: 'Returns an MCP envelope', execute: () => ({ content: [{ text: 'hi', type: 'text' }] }) },
+      object: { description: 'Returns a plain object', execute: () => ({ a: 1 }) },
+      text: { description: 'Returns a string', execute: () => 'Added' },
+      thrower: { description: 'Throws an error', execute: () => { throw new Error('out of stock') } },
+      voider: { description: 'Returns undefined', execute: () => undefined },
     }).mount()
 
     const registered = await document.modelContext.getTools()
@@ -92,7 +92,7 @@ test('executeTool takes a JSON string and rejects an object', async ({ page }, t
   const result = await page.evaluate(async () => {
     const { tools } = window.webmcpable
     await tools({
-      search: { description: 'Search the catalogue', handler: (input) => JSON.stringify(input) },
+      search: { description: 'Search the catalogue', execute: (input) => JSON.stringify(input) },
     }).mount()
     const [tool] = await document.modelContext.getTools()
 
@@ -127,6 +127,8 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
       execute: () => 'ok',
       inputSchema: { properties: {}, type: 'object' },
       name: 'probe',
+      // Not in the draft, but the Chrome team's own flight-search demo ships it.
+      outputSchema: { properties: { result: { type: 'string' } }, type: 'object' },
     })
     const [registered] = await document.modelContext.getTools()
     let circular = false
@@ -135,6 +137,7 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
       annotations: registered.annotations,
       circular,
       keys: Object.keys(registered).sort(),
+      outputSchema: registered.outputSchema,
       schemaType: typeof registered.inputSchema,
       title: registered.title,
     }
@@ -151,6 +154,9 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
 
   story.then('title defaults to an empty string')
   expect(tool.title).toBe('')
+
+  story.then('outputSchema is dropped without an error, the way invented annotations are')
+  expect(tool.outputSchema).toBeUndefined()
 
   story.then('the key set matches the pinned WebIDL')
   expect(tool.keys).toEqual([
@@ -210,13 +216,125 @@ test('getTools returns lexicographical order, not registration order', async ({ 
   const names = await page.evaluate(async () => {
     const { tools } = window.webmcpable
     await tools({
-      zebra: { description: 'Registered first', handler: () => 'ok' },
-      apple: { description: 'Registered second', handler: () => 'ok' },
-      mango: { description: 'Registered third', handler: () => 'ok' },
+      zebra: { description: 'Registered first', execute: () => 'ok' },
+      apple: { description: 'Registered second', execute: () => 'ok' },
+      mango: { description: 'Registered third', execute: () => 'ok' },
     }).mount()
     return (await document.modelContext.getTools()).map((t) => t.name)
   })
 
   story.then('they come back sorted by name')
   expect(names).toEqual(['apple', 'mango', 'zebra'])
+})
+
+test('a navigating tool keeps a synchronous result and loses an awaited one', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('two tools that navigate away, one returning at once and one awaiting first')
+  await page.evaluate(async () => {
+    const { tools } = window.webmcpable
+    await tools({
+      at_once: {
+        description: 'Navigate, returning the result in the same turn',
+        execute: () => {
+          location.href = '/e2e/fixtures/landing.html?at_once'
+          return 'Opening the landing page'
+        },
+      },
+    }).mount()
+  })
+
+  story.when('the agent calls the one that returns in the same turn')
+  await page.evaluate(async () => {
+    const [tool] = await document.modelContext.getTools()
+    // Not awaited: this document is about to be replaced. The handler records
+    // its own outcome in sessionStorage, which survives a same-origin navigation.
+    void document.modelContext
+      .executeTool(tool, '{}')
+      .then((result) => sessionStorage.setItem('outcome', `resolved:${result}`))
+      .catch((error) => sessionStorage.setItem('outcome', `rejected:${error.name}`))
+  })
+  await page.waitForURL('**/landing.html?at_once')
+
+  story.then('the result was delivered before the unload')
+  expect(await page.evaluate(() => sessionStorage.getItem('outcome'))).toBe(
+    'resolved:Opening the landing page',
+  )
+
+  story.when('the same call awaits anything after navigating')
+  await page.goto(HARNESS)
+  await expect(page).toHaveTitle('ready')
+  await page.evaluate(async () => {
+    sessionStorage.removeItem('outcome')
+    const { tools } = window.webmcpable
+    await tools({
+      after_await: {
+        description: 'Navigate, then finish work before returning',
+        execute: async () => {
+          location.href = '/e2e/fixtures/landing.html?after_await'
+          await new Promise((resolve) => setTimeout(resolve, 50))
+          return 'Opening the landing page'
+        },
+      },
+    }).mount()
+  })
+  await page.evaluate(async () => {
+    const [tool] = await document.modelContext.getTools()
+    void document.modelContext
+      .executeTool(tool, '{}')
+      .then((result) => sessionStorage.setItem('outcome', `resolved:${result}`))
+      .catch((error) => sessionStorage.setItem('outcome', `rejected:${error.name}`))
+  })
+  await page.waitForURL('**/landing.html?after_await')
+
+  story.then('nothing was recorded: the unload took the result with it')
+  expect(await page.evaluate(() => sessionStorage.getItem('outcome'))).toBeNull()
+})
+
+test('exposedTo takes secure origins only, and has no wildcard', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('the same tool offered to four different origin lists')
+  story.when('each registration is attempted')
+  const outcomes = await page.evaluate(async () => {
+    const attempt = async (exposedTo, name) => {
+      try {
+        await document.modelContext.registerTool(
+          { description: 'A probe tool', execute: () => 'ok', name },
+          { exposedTo },
+        )
+        return 'registered'
+      } catch (error) {
+        return `${error.name}: ${error.message}`
+      }
+    }
+    return {
+      insecure: await attempt(['http://partner.example'], 'a'),
+      ipv4Loopback: await attempt(['http://127.0.0.2'], 'e'),
+      ipv6Loopback: await attempt(['http://[::1]'], 'f'),
+      localhost: await attempt(['http://localhost:5173'], 'b'),
+      secure: await attempt(['https://trusted.example'], 'c'),
+      subLocalhost: await attempt(['http://app.localhost'], 'g'),
+      wildcard: await attempt(['*'], 'd'),
+    }
+  })
+
+  story.then('an https origin is accepted, and so is localhost')
+  expect(outcomes.secure).toBe('registered')
+  expect(outcomes.localhost).toBe('registered')
+
+  story.then('loopback is the whole 127.0.0.0/8 block, ::1, and any .localhost')
+  expect(outcomes.ipv4Loopback).toBe('registered')
+  expect(outcomes.ipv6Loopback).toBe('registered')
+  expect(outcomes.subLocalhost).toBe('registered')
+
+  story.then('a plain http origin is refused')
+  expect(outcomes.insecure).toBe(
+    'SecurityError: Only secure origins are allowed in the exposedTo list.',
+  )
+
+  story.then('there is no wildcard — "*" is refused the same way')
+  expect(outcomes.wildcard).toBe(
+    'SecurityError: Only secure origins are allowed in the exposedTo list.',
+  )
 })

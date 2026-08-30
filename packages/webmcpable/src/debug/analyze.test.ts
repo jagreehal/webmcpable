@@ -76,3 +76,40 @@ describe('analyzeTool — will an agent be able to use this?', () => {
     expect(codes(out)).toContain('undescribed-parameter')
   })
 })
+
+// Character budgets recommended by the Chrome team in "Build secure WebMCP
+// tools" — guidance about agent guardrails, not limits the browser enforces.
+describe('character budgets', () => {
+  const base = { description: 'Search the product catalogue', name: 'search' }
+
+  it('flags a description over 500 characters', () => {
+    expect(codes(analyzeTool({ ...base, description: 'x'.repeat(501) }))).toContain(
+      'over-budget-description',
+    )
+    expect(codes(analyzeTool({ ...base, description: 'x'.repeat(500) }))).not.toContain(
+      'over-budget-description',
+    )
+  })
+
+  it('flags a tool name over 30 characters', () => {
+    const out = analyzeTool({ ...base, name: 'a'.repeat(31) })
+    expect(codes(out)).toContain('over-budget-name')
+  })
+
+  it('flags a parameter name and a parameter description over budget', () => {
+    const long = analyzeTool({
+      ...base,
+      inputSchema: {
+        properties: { [`q${'x'.repeat(30)}`]: { description: 'y'.repeat(151), type: 'string' } },
+        type: 'object',
+      },
+    })
+    expect(codes(long)).toContain('over-budget-name')
+    expect(codes(long)).toContain('over-budget-description')
+  })
+
+  it('flags a result over 1.5K, which an agent may not read whole', () => {
+    expect(codes(analyzeResult('x'.repeat(1501)))).toContain('over-budget-result')
+    expect(codes(analyzeResult('x'.repeat(1500)))).not.toContain('over-budget-result')
+  })
+})

@@ -13,7 +13,7 @@ describe('useTools (svelte)', () => {
 
   it('registers tools inside an effect root', async () => {
     const cleanup = $effect.root(() => {
-      useTools({ search: { description: 'Search things', handler: () => 'ok' } })
+      useTools({ search: { description: 'Search things', execute: () => 'ok' } })
     })
     flushSync()
     await tick()
@@ -23,7 +23,7 @@ describe('useTools (svelte)', () => {
 
   it('unregisters when the effect root is torn down', async () => {
     const cleanup = $effect.root(() => {
-      useTools({ search: { description: 'Search things', handler: () => 'ok' } })
+      useTools({ search: { description: 'Search things', execute: () => 'ok' } })
     })
     flushSync()
     await tick()
@@ -38,7 +38,7 @@ describe('useTools (svelte)', () => {
       useTools({
         checkout: {
           description: 'Check out the cart',
-          handler: () => 'ok',
+          execute: () => 'ok',
           when: () => count > 0,
         },
       })
@@ -61,7 +61,7 @@ describe('useTools (svelte)', () => {
       useTools({
         status: {
           description: 'Read the current count',
-          handler: () => String(count),
+          execute: () => String(count),
           when: () => count >= 0,
         },
       })
@@ -82,7 +82,7 @@ describe('useTools (svelte)', () => {
       useTools({
         greet: {
           description: 'Greet someone by name',
-          handler: ({ name }) => `hello ${name}`,
+          execute: ({ name }) => `hello ${name}`,
           input: z.object({ name: z.string() }),
         },
       })

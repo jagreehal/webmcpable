@@ -1,6 +1,6 @@
 import { analyzeChange, analyzeResult, analyzeTool, type Finding, type InspectedTool } from './analyze'
 import { exampleInput } from './example'
-import { buildReport, type ReportRow } from './report'
+import { buildReport, type CallRecord, type ReportRow } from './report'
 
 /**
  * A floating panel that shows what an agent sees, lets you invoke tools with
@@ -61,6 +61,7 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
 
   let open = options.open ?? true
   let rows: Array<Row> = []
+  const calls: Array<CallRecord> = []
 
   const supported = Boolean(document.modelContext)
 
@@ -76,11 +77,12 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
     const schemaByName = new Map(listed.map((t) => [t.name, t.inputSchema]))
 
     const tools: Array<InspectedTool> = (await document.modelContext!.getTools()).map((t) => {
-      const registered = t as typeof t & { annotations?: Record<string, unknown> }
+      const registered = t as typeof t & { annotations?: Record<string, unknown>; title?: string }
       return {
         description: t.description,
         inputSchema: t.inputSchema ?? schemaByName.get(t.name),
         name: t.name,
+        ...(registered.title ? { title: registered.title } : {}),
         ...(registered.annotations ? { annotations: registered.annotations } : {}),
       }
     })
@@ -114,17 +116,23 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
       const target = tools.find((t) => t.name === row.tool.name)
       if (!target) {throw new Error('tool is no longer registered')}
       // Chrome requires a JSON string here, never an object.
-      const result = await document.modelContext!.executeTool(target, raw || '{}')
+      const result = await document.modelContext!.executeTool(target, raw || '{}') // webmcpable-ignore
       row.lastResult = result
       row.resultFindings = analyzeResult(result)
     } catch (error) {
       row.lastError = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
     }
+    calls.push({
+      input: raw,
+      name: row.tool.name,
+      ...(row.lastResult !== undefined && { result: row.lastResult }),
+      ...(row.lastError !== undefined && { error: row.lastError }),
+    })
     render()
   }
 
   const report = () =>
-    buildReport({ supported, userAgent: navigator.userAgent }, rows)
+    buildReport({ calls, supported, userAgent: navigator.userAgent }, rows)
 
   function render() {
     const findingHtml = (f: Finding) =>
@@ -132,15 +140,22 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
         f.fix ? `<br><span class="fix">${esc(f.fix)}</span>` : ''
       }</div>`
 
+    const journal = calls.length === 0
+      ? ''
+      : `<div class="tool"><div class="muted">calls this session</div>${calls
+          .map((call) => `<pre>${esc(call.name)} ${esc(call.input)} → ${esc(call.result ?? call.error ?? '')}</pre>`)
+          .join('')}</div>`
+
     const body = !supported
       ? `<div class="f error">document.modelContext is missing. Enable WebMCP in this browser, or use webmcpable/testing in tests.</div>`
       : rows.length === 0
         ? `<div class="muted">No tools registered yet.</div>`
-        : rows
+        : journal + rows
             .map(
               (row, i) => `
       <div class="tool">
         <div class="name">${esc(row.tool.name)}</div>
+        ${row.tool.title && row.tool.title !== row.tool.name ? `<div class="muted">title: ${esc(row.tool.title)}</div>` : ''}
         <div class="desc">${esc(row.tool.description ?? '')}</div>
         <div class="muted">annotations the browser kept: ${
           row.tool.annotations && Object.keys(row.tool.annotations).length

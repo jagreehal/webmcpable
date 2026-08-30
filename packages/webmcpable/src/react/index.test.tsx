@@ -13,7 +13,7 @@ describe('useTools', () => {
 
   it('registers tools while the component is mounted', async () => {
     function App() {
-      useTools({ search: { description: 'Search things', handler: () => 'ok' } })
+      useTools({ search: { description: 'Search things', execute: () => 'ok' } })
       return null
     }
     render(<App />)
@@ -22,7 +22,7 @@ describe('useTools', () => {
 
   it('unregisters on unmount', async () => {
     function App() {
-      useTools({ search: { description: 'Search things', handler: () => 'ok' } })
+      useTools({ search: { description: 'Search things', execute: () => 'ok' } })
       return null
     }
     const { unmount } = render(<App />)
@@ -32,7 +32,7 @@ describe('useTools', () => {
 
   it('survives StrictMode double-mounting without duplicate registration', async () => {
     function App() {
-      useTools({ search: { description: 'Search things', handler: () => 'ok' } })
+      useTools({ search: { description: 'Search things', execute: () => 'ok' } })
       return null
     }
     // StrictMode mounts, unmounts and remounts. A naive effect either throws
@@ -51,7 +51,7 @@ describe('useTools', () => {
       const [count, setCount] = useState(0)
       add = () => setCount((c) => c + 1)
       useTools({
-        checkout: { description: 'Check out the cart', handler: () => 'ok', when: () => count > 0 },
+        checkout: { description: 'Check out the cart', execute: () => 'ok', when: () => count > 0 },
       })
       return null
     }
@@ -72,7 +72,7 @@ describe('useTools', () => {
     function App() {
       const [description, setDescription] = useState('Search the first catalog')
       rename = () => setDescription('Search the second catalog')
-      useTools({ search: { description, handler: () => 'ok' } })
+      useTools({ search: { description, execute: () => 'ok' } })
       return null
     }
     render(<App />)
@@ -83,12 +83,27 @@ describe('useTools', () => {
     expect((await modelContext().getTools())[0]?.description).toBe('Search the second catalog')
   })
 
+  it('does not send title when titles is off', async () => {
+    function App() {
+      useTools({
+        checkout: {
+          description: 'Place the order for the current cart',
+          execute: () => 'ok',
+          title: 'Add 2 coffees',
+        },
+      }, { titles: 'off' })
+      return null
+    }
+    render(<App />)
+    expect((await modelContext().getTools())[0]?.title).toBe('')
+  })
+
   it('passes typed input through to the handler', async () => {
     function App() {
       useTools({
         greet: {
           description: 'Greet someone by name',
-          handler: ({ name }) => `hello ${name}`,
+          execute: ({ name }) => `hello ${name}`,
           input: z.object({ name: z.string() }),
         },
       })
@@ -97,5 +112,88 @@ describe('useTools', () => {
     render(<App />)
     const [tool] = await modelContext().getTools()
     await expect(modelContext().executeTool(tool!, '{"name":"jag"}')).resolves.toBe('hello jag')
+  })
+  it('still knows the descriptor moved when metadata changes', async () => {
+    const asked: Array<{ descriptorChanged: boolean }> = []
+    function App({ description }: { description: string }) {
+      useTools(
+        { checkout: { description, execute: () => 'ordered' } },
+        { confirm: (call) => { asked.push(call); return true } },
+      )
+      return null
+    }
+
+    const { rerender } = render(<App description="Place the order" />)
+    await act(async () => {})
+
+    // The tool the user first saw is not the tool that is registered now.
+    rerender(<App description="Place the order, and email the receipt" />)
+    await act(async () => {})
+
+    const [tool] = await modelContext().getTools()
+    expect(await modelContext().executeTool(tool!, '{}')).toBe('ordered')
+    expect(asked[0]!.descriptorChanged).toBe(true)
+  })
+  it('keeps consent history when an unrelated tool appears', async () => {
+    const asked: Array<{ descriptorChanged: boolean }> = []
+    function App({ description, withHelp }: { description: string; withHelp: boolean }) {
+      useTools(
+        {
+          checkout: { description, execute: () => 'ordered' },
+          ...(withHelp ? { help: { description: 'Get help', execute: () => 'helped' } } : {}),
+        },
+        { confirm: (call) => { asked.push(call); return true } },
+      )
+      return null
+    }
+
+    const { rerender } = render(<App description="Place the order" withHelp={false} />)
+    await act(async () => {})
+    rerender(<App description="Place the order, and email the receipt" withHelp={false} />)
+    await act(async () => {})
+
+    // A second tool arriving says nothing about the first one's descriptor.
+    rerender(<App description="Place the order, and email the receipt" withHelp />)
+    await act(async () => {})
+
+    const tools = await modelContext().getTools()
+    const checkout = tools.find((t) => t.name === 'checkout')!
+    expect(await modelContext().executeTool(checkout, '{}')).toBe('ordered')
+    expect(asked[0]!.descriptorChanged).toBe(true)
+  })
+
+  it('unregisters a tool that disappears from the definitions', async () => {
+    function App({ withHelp }: { withHelp: boolean }) {
+      useTools({
+        checkout: { description: 'Place the order', execute: () => 'ordered' },
+        ...(withHelp ? { help: { description: 'Get help', execute: () => 'helped' } } : {}),
+      })
+      return null
+    }
+
+    const { rerender } = render(<App withHelp />)
+    await act(async () => {})
+    expect(await names()).toEqual(['checkout', 'help'])
+
+    rerender(<App withHelp={false} />)
+    await act(async () => {})
+    expect(await names()).toEqual(['checkout'])
+  })
+  it('re-registers when the titles option changes', async () => {
+    function App({ titles }: { titles?: 'off' }) {
+      useTools(
+        { checkout: { description: 'Place the order', execute: () => 'ordered', title: 'Friendly checkout' } },
+        { titles },
+      )
+      return null
+    }
+
+    const { rerender } = render(<App />)
+    await act(async () => {})
+    expect((await modelContext().getTools())[0]!.title).toBe('Friendly checkout')
+
+    rerender(<App titles="off" />)
+    await act(async () => {})
+    expect((await modelContext().getTools())[0]!.title).toBe('')
   })
 })

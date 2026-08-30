@@ -15,7 +15,7 @@ describe('useTools (vue)', () => {
   it('registers tools while the component is mounted', async () => {
     const App = defineComponent({
       setup() {
-        useTools({ search: { description: 'Search things', handler: () => 'ok' } })
+        useTools({ search: { description: 'Search things', execute: () => 'ok' } })
         return () => h('div')
       },
     })
@@ -27,7 +27,7 @@ describe('useTools (vue)', () => {
   it('unregisters on unmount', async () => {
     const App = defineComponent({
       setup() {
-        useTools({ search: { description: 'Search things', handler: () => 'ok' } })
+        useTools({ search: { description: 'Search things', execute: () => 'ok' } })
         return () => h('div')
       },
     })
@@ -44,7 +44,7 @@ describe('useTools (vue)', () => {
         useTools({
           checkout: {
             description: 'Check out the cart',
-            handler: () => 'ok',
+            execute: () => 'ok',
             when: () => count.value > 0,
           },
         })
@@ -66,7 +66,7 @@ describe('useTools (vue)', () => {
         useTools({
           greet: {
             description: 'Greet someone by name',
-            handler: ({ name }) => `hello ${name}`,
+            execute: ({ name }) => `hello ${name}`,
             input: z.object({ name: z.string() }),
           },
         })

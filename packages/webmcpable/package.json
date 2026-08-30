@@ -28,6 +28,9 @@
       "types": "./dist/effect.d.ts",
       "import": "./dist/effect.js"
     },
+    "./declarative": {
+      "types": "./dist/declarative.d.ts"
+    },
     "./debug": {
       "types": "./dist/debug.d.ts",
       "import": "./dist/debug.js"
@@ -41,7 +44,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit",
-    "build": "tsdown",
+    "build": "tsdown && cp src/declarative.d.ts dist/declarative.d.ts",
     "prepack": "cp ../../README.md README.md && cp ../../LICENSE LICENSE",
     "prepublishOnly": "pnpm build",
     "spec-check": "pnpm build && node dist/cli.mjs spec-check",

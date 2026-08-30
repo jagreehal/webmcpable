@@ -16,7 +16,7 @@ describe('effectTools', () => {
       Effect.scoped(
         Effect.gen(function* () {
           const registry = yield* effectTools({
-            search: { description: 'Search things', handler: () => Effect.succeed('ok') },
+            search: { description: 'Search things', execute: () => Effect.succeed('ok') },
           })
           yield* registry.mount
           expect(yield* Effect.promise(names)).toEqual(['search'])
@@ -32,7 +32,7 @@ describe('effectTools', () => {
           const registry = yield* effectTools({
             greet: {
               description: 'Greet someone by name',
-              handler: ({ name }) => Effect.succeed(`hello ${name}`),
+              execute: ({ name }) => Effect.succeed(`hello ${name}`),
               input: z.object({ name: z.string() }),
             },
           })
@@ -55,7 +55,7 @@ describe('effectTools', () => {
           const registry = yield* effectTools({
             risky: {
               description: 'Something that can fail',
-              handler: () => Effect.fail(new ToolFailure({ message: 'out of stock' })),
+              execute: () => Effect.fail(new ToolFailure({ message: 'out of stock' })),
             },
           })
           yield* registry.mount
@@ -77,7 +77,7 @@ describe('effectTools', () => {
             {
               checkout: {
                 description: 'Check out the cart',
-                handler: () => Effect.succeed('ordered'),
+                execute: () => Effect.succeed('ordered'),
                 when: () => Effect.map(SubscriptionRef.get(cart), (n) => n > 0),
               },
             },
@@ -101,7 +101,7 @@ describe('effectTools', () => {
           const registry = yield* effectTools({
             export_report: {
               description: 'Export the report',
-              handler: () => Effect.succeed('exported'),
+              execute: () => Effect.succeed('exported'),
               when: () => Effect.succeed('Exports are not included in this workspace plan.'),
             },
           })
@@ -119,7 +119,7 @@ describe('effectTools', () => {
       Effect.scoped(
         Effect.gen(function* () {
           const registry = yield* effectTools({
-            a: { description: 'A tool that does a thing', handler: () => Effect.succeed('ok') },
+            a: { description: 'A tool that does a thing', execute: () => Effect.succeed('ok') },
           })
           yield* registry.mount
           const live = yield* Effect.promise(() => modelContext().getTools())

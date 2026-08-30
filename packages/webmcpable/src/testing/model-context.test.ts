@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { readInputSchema } from '../schema'
-import { installTestModelContext } from './index'
+import { tools } from '../tools'
+import { installTestModelContext, toolSchemas } from './index'
 import { modelContext } from '../model-context'
 
 // This fake covers the Chrome 151 registration, inspection, and execution
@@ -225,5 +226,50 @@ describe('installTestModelContext', () => {
     const [t] = await modelContext().getTools()
     await modelContext().executeTool(t!, '{"q":"x"}')
     expect(mc.calls).toEqual([{ input: { q: 'x' }, name: 'a', result: 'ok' }])
+  })
+})
+
+// `webmcp-evals local -t schema.json` reads the tool list off disk. Writing
+// that file by hand duplicates the registry and drifts from it.
+describe('toolSchemas', () => {
+  let mc: ReturnType<typeof installTestModelContext>
+
+  beforeEach(() => {
+    mc = installTestModelContext()
+    return () => mc.uninstall()
+  })
+
+  it('exports the registered tools in the shape webmcp-evals reads', async () => {
+    await tools({
+      add_topping: {
+        description: 'Add a topping to the pizza',
+        execute: () => 'added',
+        input: { properties: { topping: { type: 'string' } }, required: ['topping'], type: 'object' },
+      },
+      reset: { description: 'Start the pizza again', execute: () => 'reset' },
+    }).mount()
+
+    expect(await toolSchemas()).toEqual({
+      tools: [
+        {
+          description: 'Add a topping to the pizza',
+          inputSchema: { properties: { topping: { type: 'string' } }, required: ['topping'], type: 'object' },
+          name: 'add_topping',
+        },
+        {
+          description: 'Start the pizza again',
+          inputSchema: { properties: {}, type: 'object' },
+          name: 'reset',
+        },
+      ],
+    })
+  })
+
+  it('survives JSON.stringify, which a raw RegisteredTool does not', async () => {
+    await tools({ a: { description: 'a tool', execute: () => 'a' } }).mount()
+
+    const [registered] = await modelContext().getTools()
+    expect(() => JSON.stringify(registered)).toThrow()
+    expect(JSON.stringify(await toolSchemas())).toContain('"name":"a"')
   })
 })

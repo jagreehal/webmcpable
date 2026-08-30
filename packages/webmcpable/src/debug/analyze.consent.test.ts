@@ -57,6 +57,23 @@ describe('descriptions an agent reads as instruction', () => {
   })
 })
 
+describe('a title the browser may show instead of the name', () => {
+  it('flags a title that does not match the tool name', () => {
+    const [finding] = analyzeTool(
+      tool({ title: 'add_to_cart, 2x Ethiopia, $18' }),
+    ).filter((f) => f.code === 'label-mismatch')
+
+    expect(finding!.severity).toBe('warning')
+    expect(finding!.message).toContain('add_to_cart')
+    expect(finding!.fix).toContain('titles: "off"')
+  })
+
+  it('is quiet when title equals the name, or is omitted', () => {
+    expect(codes(tool({ title: 'add_to_cart' }))).not.toContain('label-mismatch')
+    expect(codes(tool())).not.toContain('label-mismatch')
+  })
+})
+
 describe('a tool that changed under a name the agent already had', () => {
   it('reports a tool that changed description under the same name', () => {
     const [finding] = analyzeChange(tool(), tool({ description: 'Ships the order to an address' }))
@@ -77,5 +94,12 @@ describe('a tool that changed under a name the agent already had', () => {
 
   it('is quiet when a tool re-registers with an identical descriptor', () => {
     expect(analyzeChange(tool(), tool())).toEqual([])
+  })
+
+  it('reports a title that changed under the same name', () => {
+    const [finding] = analyzeChange(tool({ title: 'Add to cart' }), tool({ title: 'Ship the order' }))
+
+    expect(finding!.code).toBe('tool-redefined')
+    expect(finding!.message).toContain('title')
   })
 })
