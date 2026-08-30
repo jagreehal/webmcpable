@@ -23,6 +23,13 @@ const VALID_NAME = /^[A-Za-z0-9_.-]{1,128}$/
 const MIN_DESCRIPTION = 15
 
 /**
+ * Character budgets the Chrome team recommends in "Build secure WebMCP tools".
+ * Guidance about agent guardrails rather than limits the browser enforces, so
+ * every one of these is a warning.
+ */
+const BUDGET = { description: 500, name: 30, parameter: 150, result: 1500 }
+
+/**
  * A description is context an agent reads, not a contract it can verify — the
  * WebMCP draft says as much (no guarantee a tool's declared intent matches its
  * behaviour). Anything phrased as an order to the agent is a poisoning vector,
@@ -42,6 +49,8 @@ export interface InspectedTool {
   /** Chrome's listTools() hands this back as a JSON string. */
   inputSchema?: unknown
   name: string
+  /** Display label the browser may promote over `name` in a consent dialogue. */
+  title?: string
 }
 
 const parseSchema = (schema: unknown): Record<string, unknown> | undefined => {
@@ -57,6 +66,15 @@ const parseSchema = (schema: unknown): Record<string, unknown> | undefined => {
 
 export function analyzeResult(result: string): Array<Finding> {
   const findings: Array<Finding> = []
+
+  if (result.length > BUDGET.result) {
+    findings.push({
+      code: 'over-budget-result',
+      fix: 'Return the fields the agent needs, or a page of them with a way to ask for the rest.',
+      message: `This result is ${result.length} characters. The recommended budget is ${BUDGET.result}, above which an agent may not read it whole.`,
+      severity: 'warning',
+    })
+  }
 
   if (result === '') {
     findings.push({
@@ -106,6 +124,32 @@ export function analyzeTool(tool: InspectedTool): Array<Finding> {
       code: 'invalid-name',
       message: `"${tool.name}" is not a valid tool name. Use 1-128 characters: letters, digits, '_', '-' or '.'.`,
       severity: 'error',
+    })
+  }
+
+  if (tool.title && tool.title !== tool.name) {
+    findings.push({
+      code: 'label-mismatch',
+      fix: 'Omit `title`, set it equal to `name`, or pass `{ titles: "off" }` so the browser cannot promote a friendlier label.',
+      message: `"${tool.name}" is registered with title "${tool.title}", which is what a consent dialogue is likely to show.`,
+      severity: 'warning',
+    })
+  }
+
+  if (tool.name.length > BUDGET.name) {
+    findings.push({
+      code: 'over-budget-name',
+      message: `"${tool.name}" is ${tool.name.length} characters. The recommended budget is ${BUDGET.name}.`,
+      severity: 'warning',
+    })
+  }
+
+  if ((tool.description?.length ?? 0) > BUDGET.description) {
+    findings.push({
+      code: 'over-budget-description',
+      fix: 'Say what it does and when to use it. Detail the agent needs per call belongs in the input schema.',
+      message: `"${tool.name}" has a ${tool.description!.length}-character description. The recommended budget is ${BUDGET.description}.`,
+      severity: 'warning',
     })
   }
 
@@ -161,6 +205,23 @@ export function analyzeTool(tool: InspectedTool): Array<Finding> {
           severity: 'warning',
         })
       }
+
+      if (key.length > BUDGET.name) {
+        findings.push({
+          code: 'over-budget-name',
+          message: `Parameter "${key}" is ${key.length} characters. The recommended budget is ${BUDGET.name}.`,
+          severity: 'warning',
+        })
+      }
+
+      const text = (value as { description?: unknown })?.description
+      if (typeof text === 'string' && text.length > BUDGET.parameter) {
+        findings.push({
+          code: 'over-budget-description',
+          message: `Parameter "${key}" has a ${text.length}-character description. The recommended budget is ${BUDGET.parameter}.`,
+          severity: 'warning',
+        })
+      }
     }
   }
 
@@ -168,7 +229,7 @@ export function analyzeTool(tool: InspectedTool): Array<Finding> {
 }
 
 /** The descriptor fields a user would have seen when they approved the tool. */
-const DESCRIPTOR: Array<keyof InspectedTool> = ['description', 'inputSchema', 'annotations']
+const DESCRIPTOR: Array<keyof InspectedTool> = ['description', 'inputSchema', 'annotations', 'title']
 
 /**
  * A tool that changed under a name the agent has already been offered. The

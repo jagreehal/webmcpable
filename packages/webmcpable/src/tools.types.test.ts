@@ -10,7 +10,7 @@ describe('tools() inference', () => {
     tools({
       search: {
         description: 'search',
-        handler: (input) => {
+        execute: (input) => {
           expectTypeOf(input).toEqualTypeOf<{ limit?: number | undefined; q: string; }>()
           return ''
         },
@@ -23,7 +23,7 @@ describe('tools() inference', () => {
     tools({
       a: {
         description: 'a',
-        handler: (input) => {
+        execute: (input) => {
           expectTypeOf(input).toEqualTypeOf<{ x: string }>()
           return ''
         },
@@ -31,7 +31,7 @@ describe('tools() inference', () => {
       },
       b: {
         description: 'b',
-        handler: (input) => {
+        execute: (input) => {
           expectTypeOf(input).toEqualTypeOf<{ y: number }>()
           return ''
         },
@@ -44,7 +44,7 @@ describe('tools() inference', () => {
     tools({
       slow: {
         description: 'slow',
-        handler: (_input, options) => {
+        execute: (_input, options) => {
           expectTypeOf(options.signal).toEqualTypeOf<AbortSignal>()
           return ''
         },

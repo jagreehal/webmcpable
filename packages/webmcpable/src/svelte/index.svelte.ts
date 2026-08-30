@@ -1,4 +1,4 @@
-import { tools, type InputSchema, type ToolDef } from '../tools'
+import { tools, type InputSchema, type RegistryOptions, type ToolDef } from '../tools'
 
 const reportRegistrationError = (error: unknown) => {
   console.error('[webmcpable] Tool registration failed.', error)
@@ -13,8 +13,9 @@ const reportRegistrationError = (error: unknown) => {
  */
 export function useTools<T extends Record<string, InputSchema | undefined>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
+  options?: RegistryOptions,
 ): void {
-  const registry = tools(defs)
+  const registry = tools(defs, options)
 
   $effect(() => {
     // Reading state inside `when` registers a dependency here, so this re-runs

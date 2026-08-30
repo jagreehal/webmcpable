@@ -2,11 +2,17 @@
 
 | Key | Value |
 | --- | --- |
-| Date | 2026-08-29T11:31:47.388Z |
-| Version | 0.1.0 |
-| Git SHA | a00bc7a |
+| Date | 2026-08-30T08:46:01.282Z |
+| Version | 0.2.0 |
+| Git SHA | 4ecae21 |
 
 ## consent.conformance.ts
+
+### ✅ titles: "off" keeps a friendlier label out of the browser descriptor
+
+- **Given** a tool registered with a title that does not match its name
+- **When** the registry is mounted with titles off
+- **Then** the browser stores an empty title, so it cannot promote the label
 
 ### ✅ a raw JSON Schema still rejects a call missing a required property
 
@@ -15,6 +21,12 @@
 - **Then** the agent is told which property is missing
 - **And** the handler never saw the call
 
+### ✅ a description that changes is re-registered, so the agent never reads a stale one
+
+- **Given** a tool whose description is built from application state
+- **When** that state changes and the registry revalidates
+- **Then** the browser hands the agent the new description
+
 ### ✅ a tool refuses to run once its `when` stops holding
 
 - **Given** a checkout tool registered while the cart has items
@@ -22,11 +34,17 @@
 - **Then** the call is refused in text the agent can read
 - **And** the handler never ran
 
-### ✅ a description that changes is re-registered, so the agent never reads a stale one
+### ✅ confirm refuses a mutating call the user did not approve
 
-- **Given** a tool whose description is built from application state
-- **When** that state changes and the registry revalidates
-- **Then** the browser hands the agent the new description
+- **Given** a checkout tool with a page-side confirm that says no
+- **When** the agent invokes it
+- **Then** the handler never ran
+- **And** the agent is told the call was not confirmed
+
+### ✅ a two-face tool is flagged as a label mismatch, and a poisoned description is flagged too
+
+- **Given** a tool whose title, name, and description do not agree
+- **Then** the debug findings name the two-face label, the hidden instruction, and the swap
 
 ## model-context.conformance.ts
 
@@ -35,28 +53,6 @@
 - **Given** Chrome 152, where the draft moved to document.modelContext
 - **Then** navigator.modelContext no longer aliases it
 - **And** the undocumented navigator.modelContextTesting is also gone
-
-### ✅ Chrome is new enough to carry the WebMCP implementation
-
-- **Given** a Chrome launched with the WebMCP flags
-- **Then** the major version is at least 152
-- **And** document.modelContext is present
-
-### ✅ a RegisteredTool is shaped the way webmcpable assumes
-
-- **Given** a tool registered with every annotation server-side MCP defines
-- **Then** inputSchema comes back as a JSON string, not the object the draft types
-- **And** only the two annotations the draft defines survive; the rest vanish silently
-- **And** it carries a Window, so JSON.stringify throws
-- **And** title defaults to an empty string
-- **And** the key set matches the pinned WebIDL
-
-### ✅ executeTool takes a JSON string and rejects an object
-
-- **Given** a registered tool with an input schema
-- **When** the agent calls it both ways
-- **Then** a JSON string works
-- **And** the object form the draft specifies is rejected
 
 ### ✅ a handler result reaches the agent as a string
 
@@ -67,6 +63,28 @@
 - **And** an MCP envelope is NOT unwrapped — the agent gets the wrapper
 - **And** undefined becomes an empty result, because webmcpable normalises it
 - **And** a thrown message survives, because webmcpable returns it as text
+
+### ✅ Chrome is new enough to carry the WebMCP implementation
+
+- **Given** a Chrome launched with the WebMCP flags
+- **Then** the major version is at least 152
+- **And** document.modelContext is present
+
+### ✅ executeTool takes a JSON string and rejects an object
+
+- **Given** a registered tool with an input schema
+- **When** the agent calls it both ways
+- **Then** a JSON string works
+- **And** the object form the draft specifies is rejected
+
+### ✅ a RegisteredTool is shaped the way webmcpable assumes
+
+- **Given** a tool registered with every annotation server-side MCP defines
+- **Then** inputSchema comes back as a JSON string, not the object the draft types
+- **And** only the two annotations the draft defines survive; the rest vanish silently
+- **And** it carries a Window, so JSON.stringify throws
+- **And** title defaults to an empty string
+- **And** the key set matches the pinned WebIDL
 
 ### ✅ registration rejects the same things the fake rejects
 

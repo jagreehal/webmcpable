@@ -1,6 +1,6 @@
 import { Cause, Data, Effect, Stream, SubscriptionRef } from 'effect'
 import { readInputSchema } from '../schema'
-import { tools, type InputSchema, type ToolDef } from '../tools'
+import { tools, type InputSchema, type RegistryOptions, type ToolDef } from '../tools'
 
 /**
  * Effect-native WebMCP tools.
@@ -24,7 +24,7 @@ type Infer<S> = S extends { '~standard': unknown }
 export interface EffectToolDef<S extends InputSchema | undefined = InputSchema | undefined> {
   annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }
   description: string
-  handler: (
+  execute: (
     input: Infer<S>,
     options: { signal: AbortSignal },
   ) => Effect.Effect<unknown, unknown>
@@ -40,6 +40,8 @@ export interface EffectRegistry {
 }
 
 export interface EffectToolsOptions {
+  confirm?: RegistryOptions['confirm'] | undefined
+  titles?: RegistryOptions['titles'] | undefined
   /** Changes to any of these re-evaluate every `when` predicate. */
   // `any` rather than `unknown`: SubscriptionRef is invariant, so `unknown`
   // would reject every concrete ref a caller actually has.
@@ -72,9 +74,9 @@ export const effectTools = Effect.fn('effectTools')(function* <
         // `when` must answer synchronously: the platform decides registration
         // at call time, so there is nowhere to await.
         ...(def.when && { when: () => Effect.runSync(def.when!()) }),
-        handler: (input: never, opts: { signal: AbortSignal }) =>
+        execute: (input: never, opts: { signal: AbortSignal }) =>
           Effect.runPromise(
-            def.handler(input, opts).pipe(
+            def.execute(input, opts).pipe(
               // Chrome erases thrown errors, so a failure has to come back as
               // text or the agent learns nothing at all.
               Effect.catchCause((cause) =>
@@ -86,7 +88,7 @@ export const effectTools = Effect.fn('effectTools')(function* <
     ]),
   ) as Record<string, ToolDef>
 
-  const registry = tools(plain)
+  const registry = tools(plain, { confirm: options.confirm, titles: options.titles })
 
   // Tools come down when the scope closes.
   yield* Effect.addFinalizer(() => Effect.sync(() => registry.unmount()))

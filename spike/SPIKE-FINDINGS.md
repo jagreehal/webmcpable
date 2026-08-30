@@ -146,3 +146,6 @@ npx webmcpable doctor
 `doctor` scans for the hazards above that a browser hides at runtime. `npx
 webmcpable spec-check` compares the pinned WebIDL against the live draft and
 exits non-zero when the draft moves.
+
+The consent dialogue itself is out of reach of any page library. The three
+rules that would close it are in [HONEST-HANDSHAKE.md](./HONEST-HANDSHAKE.md).

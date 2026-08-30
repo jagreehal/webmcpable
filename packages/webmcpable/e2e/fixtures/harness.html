@@ -6,6 +6,7 @@
 <script type="module">
   // The real build, not the source: the lane verifies what actually ships.
   import { tools, isSupported } from '/dist/index.js'
-  window.webmcpable = { isSupported, tools }
+  import { analyzeChange, analyzeTool } from '/dist/debug.js'
+  window.webmcpable = { analyzeChange, analyzeTool, isSupported, tools }
   document.title = 'ready'
 </script>

@@ -1,3 +1,7 @@
+import { modelContext } from '../model-context'
+import { isPotentiallyTrustworthyOrigin } from '../origin'
+import { readInputSchema } from '../schema'
+
 /**
  * An in-memory `document.modelContext` that reproduces Chrome's real
  * behaviour — including its divergences from the W3C draft.
@@ -27,24 +31,6 @@ interface RegisterOptions {
 }
 
 const VALID_TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/
-
-const isPotentiallyTrustworthyOrigin = (origin: string): boolean => {
-  let url: URL
-  try {
-    url = new URL(origin)
-  } catch {
-    return false
-  }
-  if (url.protocol === 'file:') {return true}
-  if (url.origin !== origin) {return false}
-  if (url.protocol === 'https:' || url.protocol === 'wss:') {return true}
-  return (
-    url.hostname === 'localhost' ||
-    url.hostname.endsWith('.localhost') ||
-    url.hostname === '127.0.0.1' ||
-    url.hostname === '::1'
-  )
-}
 
 /** Chrome keeps only these two, and always returns both once any are sent. */
 const normaliseAnnotations = (annotations: Record<string, unknown>) => ({
@@ -181,5 +167,29 @@ export function installTestModelContext(): TestModelContext {
       if (previous) {Object.defineProperty(document, 'modelContext', previous)}
       else {delete (document as { modelContext?: unknown }).modelContext}
     },
+  }
+}
+
+/**
+ * The registered tools in the shape `webmcp-evals local -t schema.json` reads.
+ *
+ *   const mc = installTestModelContext()
+ *   await registry.mount()
+ *   writeFileSync('schema.json', JSON.stringify(await toolSchemas(), null, 2))
+ *
+ * `JSON.stringify(await getTools())` cannot stand in for this: a RegisteredTool
+ * carries its owner Window and throws on a circular structure, and Chrome hands
+ * `inputSchema` back as a JSON string.
+ */
+export async function toolSchemas(): Promise<{
+  tools: Array<{ description: string; inputSchema: Record<string, unknown>; name: string }>
+}> {
+  const listed = await modelContext().getTools()
+  return {
+    tools: listed.map((tool) => ({
+      description: tool.description,
+      inputSchema: readInputSchema(tool.inputSchema) ?? { properties: {}, type: 'object' },
+      name: tool.name,
+    })),
   }
 }

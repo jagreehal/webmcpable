@@ -80,7 +80,7 @@ export async function doctor(root: string): Promise<DoctorReport> {
   const files = await collectSourceFiles(root)
   const findings: Array<Finding> = []
 
-  // ponytail: sequential reads. Scanning is regex-bound, and a bounded pool
+  // Sequential reads. Scanning is regex-bound, and a bounded pool
   // only pays off past a few thousand files. Add one if a large repo drags.
   for (const file of files) {
     findings.push(...(await scanFile(file)))

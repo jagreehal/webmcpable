@@ -11,9 +11,9 @@ export interface ToolDef<S extends InputSchema | undefined = InputSchema | undef
   /** Only the two annotations the W3C draft actually defines. */
   annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }
   description: string
+  execute: (input: Infer<S>, options: { signal: AbortSignal }) => unknown
   /** Origins in the current document tree that may discover and call this tool. */
   exposedTo?: Array<string>
-  handler: (input: Infer<S>, options: { signal: AbortSignal }) => unknown
   input?: S
   title?: string
   /**
@@ -31,6 +31,74 @@ export interface Registry {
   mount(): Promise<void>
   revalidate(): Promise<void>
   unmount(): void
+}
+
+/** The call the execute wrapper is about to run — name and args, not the label. */
+export interface ConfirmCall {
+  description: string
+  /** True when the descriptor has moved since this tool was first registered. */
+  descriptorChanged: boolean
+  input: unknown
+  name: string
+  title?: string
+}
+
+export interface RegistryOptions {
+  /**
+   * Ask before a mutating tool runs. `true` uses `window.confirm`.
+   * Tools with `readOnlyHint: true` skip this.
+   */
+  confirm?: boolean | ((call: ConfirmCall) => boolean | Promise<boolean>) | undefined
+  /** Never send `title` to the browser, so a consent dialogue cannot promote a friendlier label. */
+  titles?: 'off' | undefined
+}
+
+/**
+ * A schema may validate to something JSON cannot hold — a BigInt, a Map, a
+ * cycle. This is the text a user approves a call by, so each of those has to
+ * show its contents rather than throw or serialise to `{}`.
+ */
+// oxlint-disable-next-line @nkzw/no-instanceof -- Map and Set are the point
+function describeInput(input: unknown): string {
+  const seen = new WeakSet<object>()
+  try {
+    return (
+      JSON.stringify(input, (_, value: unknown) => {
+        if (typeof value === 'bigint') {return `${value}`}
+        // oxlint-disable-next-line @nkzw/no-instanceof
+        if (value instanceof Map) {return Object.fromEntries(value)}
+        // oxlint-disable-next-line @nkzw/no-instanceof
+        if (value instanceof Set) {return [...value]}
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) {return '[circular]'}
+          seen.add(value)
+        }
+        return value
+      }) ?? ''
+    )
+  } catch {
+    return String(input)
+  }
+}
+
+export function formatConfirmPrompt(call: ConfirmCall): string {
+  const headline = `${call.name} ${describeInput(call.input)}`
+  const subtitle = call.title ?? call.description
+  return call.descriptorChanged
+    ? `${headline}\n${subtitle}\nThis tool has changed since page load.`
+    : `${headline}\n${subtitle}`
+}
+
+export async function invokeConfirm(
+  confirm: RegistryOptions['confirm'],
+  call: ConfirmCall,
+): Promise<boolean> {
+  // `false` is "do not ask", not "ask with the default dialogue" — a caller
+  // writing `confirm: isProduction` must be silent when that is false.
+  if (confirm === undefined || confirm === false) {return true}
+  if (typeof confirm === 'function') {return confirm(call)}
+  if (typeof globalThis.confirm === 'function') {return globalThis.confirm(formatConfirmPrompt(call))}
+  return false
 }
 
 const isStandardSchema = (s: unknown): s is StandardSchemaV1 =>
@@ -57,8 +125,8 @@ async function validate(schema: InputSchema | undefined, value: unknown) {
     // A raw JSON Schema is a description, not a validator — nothing here parses
     // it. Checking the top-level `required` list covers the failure that
     // actually bites: a handler dereferencing a property the agent omitted.
-    // ponytail: top-level `required` only. Use a Standard Schema (zod, arktype,
-    // valibot) when nested or format validation matters.
+    // Top-level `required` only. Use a Standard Schema (zod, arktype, valibot)
+    // when nested or format validation matters.
     const required = (schema as { required?: unknown }).required
     if (Array.isArray(required)) {
       const record = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>
@@ -82,12 +150,12 @@ async function validate(schema: InputSchema | undefined, value: unknown) {
 /**
  * `T` maps each tool name to its input schema. TypeScript reverse-infers it
  * from the `input` property of each entry, which is what contextually types
- * that entry's `handler` argument.
+ * that entry's `execute` argument.
  */
 /**
  * The one place the input type is erased.
  *
- * Callers get `handler(input: Infer<S>)` from the public overload, but inside
+ * Callers get `execute(input: Infer<S>)` from the public overload, but inside
  * the implementation `S` is erased to the union, so the two cannot be related
  * by inference. This is sound because it is only reached after the schema has
  * validated the value: see `validate` above, whose failure path returns before
@@ -101,15 +169,29 @@ const availability = (def: ToolDef): boolean | string => def.when?.() ?? true
 const refusal = (name: string, state: boolean | string) =>
   state === true ? undefined : state || `${name} is not available right now.`
 
+/** The title the browser will actually see: `titles: 'off'` withholds it. */
+export const effectiveTitle = (
+  def: ToolDef,
+  titles: RegistryOptions['titles'],
+): string | undefined => (titles === 'off' ? undefined : def.title)
+
 /**
  * The fields the browser hands an agent. If any of them changes, the descriptor
  * the user consented to is no longer the one that is registered, so the tool has
  * to be replaced rather than left alone.
+ *
+ * The title is the effective one, not the declared one: switching `titles` off
+ * changes what the browser holds, so it has to change the key that decides
+ * whether to re-register.
  */
-export const descriptorKey = (name: string, def: ToolDef): string =>
+export const descriptorKey = (
+  name: string,
+  def: ToolDef,
+  titles?: RegistryOptions['titles'],
+): string =>
   JSON.stringify([
     name,
-    def.title,
+    effectiveTitle(def, titles),
     def.description,
     toJsonSchema(def.input),
     def.annotations,
@@ -118,30 +200,34 @@ export const descriptorKey = (name: string, def: ToolDef): string =>
 
 export function tools<T extends Record<string, InputSchema | undefined>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
+  options?: RegistryOptions,
 ): Registry
-export function tools(defs: Record<string, ToolDef>): Registry {
+export function tools(defs: Record<string, ToolDef>, options: RegistryOptions = {}): Registry {
   // One controller per tool: aborting it is how the platform unregisters.
   // The key is the descriptor it was registered with, so `sync` can tell a
   // tool that merely still exists from one that still matches.
   const live = new Map<string, { controller: AbortController; key: string }>()
+  // First descriptor seen for each name, so confirm can flag a swap since load.
+  const firstSeen = new Map<string, string>()
 
   async function add(name: string, def: ToolDef, key: string) {
     const controller = new AbortController()
     live.set(name, { controller, key })
     try {
+      const title = effectiveTitle(def, options.titles)
       await modelContext().registerTool(
         {
           description: def.description,
           name,
-          ...(def.title !== undefined && { title: def.title }),
+          ...(title !== undefined && { title }),
           inputSchema: toJsonSchema(def.input),
           ...(def.annotations && { annotations: def.annotations }),
-          execute: async (raw: unknown, options: { signal: AbortSignal }) => {
+          execute: async (raw: unknown, callOptions: { signal: AbortSignal }) => {
             const parsed = await validate(def.input, raw)
             // Chrome discards thrown messages, so a validation failure has to be
             // *returned* as text or the agent learns nothing.
             if ('error' in parsed) {return parsed.error}
-            return toToolResult(() => {
+            return toToolResult(async () => {
               // `when` is what makes the tool list mirror the UI. Checking it
               // only at registration leaves a window between revalidations
               // where a tool the user can no longer reach is still callable.
@@ -154,7 +240,17 @@ export function tools(defs: Record<string, ToolDef>): Registry {
                 // on the next revalidate, which every adapter already drives.
                 return why
               }
-              return def.handler(validated(parsed.value), options)
+              if (def.annotations?.readOnlyHint !== true && options.confirm) {
+                const ok = await invokeConfirm(options.confirm, {
+                  description: def.description,
+                  descriptorChanged: firstSeen.get(name) !== descriptorKey(name, def, options.titles),
+                  input: parsed.value,
+                  name,
+                  ...(title !== undefined && { title }),
+                })
+                if (!ok) {return `${name} was not confirmed.`}
+              }
+              return def.execute(validated(parsed.value), callOptions)
             })
           },
         } as WebMCP.ModelContextTool,
@@ -163,9 +259,16 @@ export function tools(defs: Record<string, ToolDef>): Registry {
           ...(def.exposedTo && { exposedTo: def.exposedTo }),
         },
       )
+      if (!firstSeen.has(name)) {firstSeen.set(name, key)}
     } catch (error) {
       if (live.get(name)?.controller === controller) {live.delete(name)}
-      throw error
+      // Chrome refuses a name it already has with "Duplicate tool name" and
+      // never says which one, and a `<form toolname>` is a claimant too.
+      // Measured in e2e/declarative.conformance.ts.
+      throw new Error(
+        `webmcpable could not register "${name}": ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`,
+        { cause: error },
+      )
     }
   }
 
@@ -178,6 +281,15 @@ export function tools(defs: Record<string, ToolDef>): Registry {
     // Applications can ship one bundle to browsers with and without WebMCP.
     // A later revalidate() will register the tools if the API becomes available.
     if (typeof document === 'undefined' || !document.modelContext) {return}
+    // A definition that is gone takes its registration with it, so an adapter
+    // can hand over a changing set of tools without rebuilding the registry —
+    // and losing what the user has already been offered.
+    const defined = new Set(Object.keys(defs))
+    // Copy first: `remove` deletes from `live` while we iterate it.
+    // oxlint-disable-next-line no-useless-spread
+    for (const name of [...live.keys()]) {
+      if (!defined.has(name)) {remove(name)}
+    }
     for (const [name, def] of Object.entries(defs)) {
       const entry = live.get(name)
       // Only an outright `false` takes the tool away. A reason string keeps it
@@ -189,7 +301,7 @@ export function tools(defs: Record<string, ToolDef>): Registry {
       // A description or schema built from application state can change without
       // the name changing. Reconciling on the name alone leaves the agent
       // reading the descriptor this tool had at mount time, forever.
-      const key = descriptorKey(name, def)
+      const key = descriptorKey(name, def, options.titles)
       if (!entry) {await add(name, def, key)}
       else if (entry.key !== key) {
         remove(name)
@@ -205,6 +317,7 @@ export function tools(defs: Record<string, ToolDef>): Registry {
       // Copy first: `remove` deletes from `live` while we iterate it.
       // oxlint-disable-next-line no-useless-spread
       for (const name of [...live.keys()]) {remove(name)}
+      firstSeen.clear()
     },
   }
 }

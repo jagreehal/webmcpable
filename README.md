@@ -50,7 +50,19 @@ in-memory harness in [`webmcpable/testing`](#test-without-a-supporting-browser).
 
 Two things this library leaves alone. It does not bridge desktop MCP clients to
 your page, and it does not polyfill WebMCP. The browser owns declarative
-`<form toolname>` support.
+`<form toolname>` support. If you mix the two, reference the attribute types so
+TypeScript accepts them:
+
+```ts
+/// <reference types="webmcpable/declarative" />
+```
+
+A form registers a tool as surely as `registerTool` does, and the browser
+refuses a name that is already taken — so `tools()` reports
+`webmcpable could not register "book_table": InvalidStateError: Duplicate tool
+name`, and the form keeps the name. A declarative tool without `toolautosubmit`
+also parks the agent's call until a human presses the button. Both measured in
+[`e2e/declarative.conformance.ts`](./packages/webmcpable/e2e/declarative.conformance.ts).
 
 ## Your first tool
 
@@ -63,7 +75,7 @@ const registry = tools({
     description: 'Check out the current cart and place the order.',
     when: () => cart.items.length > 0,        // only offered when it is possible
     input: z.object({ address: z.string().describe('Delivery address') }),
-    handler: ({ address }) => placeOrder(address),
+    execute: ({ address }) => placeOrder(address),
   },
 })
 
@@ -109,6 +121,45 @@ A handler returns a string, a JSON-compatible value, or `undefined`.
 Chrome replaces a thrown error with a generic `UnknownError`. `webmcpable`
 catches it and returns `Error: <message>`, so the agent reads what went wrong.
 
+### Return what changed, not that something changed
+
+`"Filters updated"` forces the agent to call another tool to find out what it
+did, and that second call races your UI: it can read the page before the
+framework has rendered your change. Return the new state from the tool that
+made it and the race is gone.
+
+```ts
+set_filters: {
+  description: 'Filter the flight results.',
+  input: z.object({ maxPrice: z.number() }),
+  execute: ({ maxPrice }) => {
+    const flights = applyFilters({ maxPrice })
+    return { count: flights.length, flights }   // not 'Filters updated'
+  },
+}
+```
+
+### Tools that navigate
+
+A tool that navigates unloads the document that still owes the agent a result.
+Measured in Chrome 152: a value returned in the same turn as the assignment
+arrives, and anything awaited after it is lost with no error on either side.
+Do not rely on the first half — resolve first, navigate from a task:
+
+```ts
+view_product: {
+  description: 'Open the page for a product.',
+  input: z.object({ id: z.string() }),
+  execute: ({ id }) => {
+    setTimeout(() => location.assign(`/product/${id}`), 0)
+    return `Opening ${id}.`
+  },
+}
+```
+
+`doctor` flags a tool that navigates without deferring. Client-side routers are
+fine — nothing unloads. Call `mount()` again on the page you land on.
+
 ## Tools that follow page state
 
 A tool the agent cannot use is worse than no tool. `when:` decides whether to
@@ -116,9 +167,9 @@ offer each one, so an empty cart hides `checkout` instead of failing it.
 
 ```ts
 tools({
-  view_cart:  { description: '...', handler: showCart },
-  checkout:   { description: '...', when: () => cart.items.length > 0, handler: checkout },
-  cancel:     { description: '...', when: () => order.status === 'pending', handler: cancel },
+  view_cart:  { description: '...', annotations: { readOnlyHint: true }, execute: showCart },
+  checkout:   { description: '...', when: () => cart.items.length > 0, execute: checkout },
+  cancel:     { description: '...', when: () => order.status === 'pending', execute: cancel },
 })
 ```
 
@@ -131,7 +182,7 @@ rest of the workflow.
 export_report: {
   description: 'Export this report as a CSV.',
   when: () => plan.exports || 'Exports are not included in this workspace plan.',
-  handler: exportReport,
+  execute: exportReport,
 }
 ```
 
@@ -150,7 +201,7 @@ function Cart({ items }) {
     checkout: {
       description: 'Check out the current cart.',
       when: () => items.length > 0,
-      handler: placeOrder,
+      execute: placeOrder,
     },
   })
   return <CartView items={items} />
@@ -169,7 +220,7 @@ useTools({
   checkout: {
     description: 'Check out the current cart.',
     when: () => cart.value.items.length > 0,
-    handler: placeOrder,
+    execute: placeOrder,
   },
 })
 ```
@@ -187,7 +238,7 @@ useTools({
   checkout: {
     description: 'Check out the current cart.',
     when: () => cart.items.length > 0,
-    handler: placeOrder,
+    execute: placeOrder,
   },
 })
 ```
@@ -204,7 +255,7 @@ const registry = yield* effectTools({
   checkout: {
     description: 'Check out the current cart.',
     when: () => Effect.map(SubscriptionRef.get(cart), (n) => n > 0),
-    handler: ({ address }) => placeOrder(address),
+    execute: ({ address }) => placeOrder(address),
   },
 }, { watch: [cart] })
 
@@ -258,6 +309,34 @@ Use the same split in your own app: unit tests against `webmcpable/testing` on
 every commit, a small conformance lane against real Chrome to catch the day the
 browser moves.
 
+### Hand your tools to an eval
+
+Both lanes above answer "does this tool work". Neither answers "will a model
+pick it" — that needs a model, and
+[`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals)
+already does it. Its `local` mode reads your tool list from a JSON file, and
+`toolSchemas()` writes that file from the registry you already have, so the
+schemas the model is judged on cannot drift from the ones you ship:
+
+```ts
+import { installTestModelContext, toolSchemas } from 'webmcpable/testing'
+
+installTestModelContext()
+await registry.mount()
+writeFileSync('schema.json', JSON.stringify(await toolSchemas(), null, 2))
+```
+
+```bash
+npx webmcp-evals local -t schema.json -e evals.json
+```
+
+`JSON.stringify(await getTools())` cannot stand in for this — a `RegisteredTool`
+carries its owner `Window` and throws on a circular structure.
+
+`doctor` and the debug panel are the cheap version of the same question: a thin
+description or an undescribed parameter is a tool a model will misfire on, and
+neither costs an API key.
+
 ## What this protects, and what it cannot
 
 An agent driving your site runs in the session the user is already signed into,
@@ -272,14 +351,30 @@ What this library does is keep an honest site's tools honest:
   not merely hidden from the next listing.
 - A description or schema that changes is re-registered, so an agent never reads
   a descriptor the page has moved past.
+- `{ titles: 'off' }` withholds `title` from the browser, so a consent dialogue
+  cannot promote a friendlier label over the name that runs.
+- `confirm` asks again on the execute path, bound to the resolved name and
+  arguments. Read-only tools skip it. This is a second check, not a replacement
+  for the browser dialogue.
 - `doctor` fails the build on a description built by interpolation — the usual
-  way user content becomes text an agent reads as instruction.
-- The debug panel flags a description phrased as an order to the agent, and a
-  tool redefined under a name the agent already had.
+  way user content becomes text an agent reads as instruction — and on an
+  `exposedTo` origin the browser will refuse. It warns on a title that does not
+  contain the tool name, a page-initiated `executeTool`, and a mutating tool
+  with no `when`.
+- Both `doctor` and the panel measure names, descriptions and results against
+  the [character budgets the Chrome team
+  recommends](https://developer.chrome.com/docs/ai/webmcp/secure-tools): 30 for
+  a name, 500 for a description, 150 for a parameter description, 1.5K for a
+  result. They are agent guardrails rather than browser limits, so they warn.
+- The debug panel flags a description phrased as an order to the agent, a title
+  that does not match the name, a tool redefined under a name the agent already
+  had, and a journal of the resolved calls.
 
 None of that stops prompt injection, and none of it helps against a site that
 means you harm — such a site would not use this library. It makes accidental
 versions of those problems loud in development instead of silent in production.
+The three rules the browser dialogue still needs are in
+[spike/HONEST-HANDSHAKE.md](spike/HONEST-HANDSHAKE.md).
 
 ## Inspect what an agent sees
 
@@ -290,8 +385,10 @@ mountDebugPanel()
 
 The panel lists every registered tool next to the result string an agent
 receives. It flags MCP envelopes, thin descriptions, undescribed parameters,
-invalid names, descriptions phrased as instructions to the agent, and tools
-redefined under a name the agent already had. Copy its report as Markdown.
+invalid names, descriptions phrased as instructions to the agent, a `title` that
+does not match the name, and tools redefined under a name the agent already had.
+It keeps a journal of resolved calls — name and arguments, not the label. Copy
+its report as Markdown.
 
 ## Track the draft
 
@@ -301,15 +398,25 @@ npx webmcpable spec-check    # report changes to the draft WebIDL
 ```
 
 Treat `spec-check` as a drift alarm rather than a correctness oracle. `doctor`
-reads your source for hazards Chrome hides at runtime, such as an invented
-`destructiveHint` that Chrome discards without an error.
+reads your source for hazards Chrome hides at runtime: an invented
+`destructiveHint` or an `outputSchema`, both discarded without an error; a
+description built by interpolation; a tool that navigates away before its
+result is delivered.
 
 ## API vocabulary
 
+Set `annotations: { untrustedContentHint: true }` on a tool that returns user
+content or anything fetched from elsewhere, and `readOnlyHint: true` on one that
+changes nothing — the second also skips `confirm`.
+
 `tools()` returns a **registry**. `mount` registers, `revalidate` re-evaluates
 every `when`, `unmount` aborts. A **tool** is a name, a description, an optional
-input schema, and a handler. Set `exposedTo` when callers in other origins of
-the current document tree need access.
+input schema, and an `execute` function. Set `exposedTo` when callers in other origins of
+the current document tree need access — exact secure origins only, measured in
+[`e2e/model-context.conformance.ts`](./packages/webmcpable/e2e/model-context.conformance.ts):
+Chrome refuses plain `http:` and has no wildcard. Pass `{ titles: 'off' }` to withhold
+`title` from the browser, and `confirm` (a function, or `true` for
+`window.confirm`) to ask before a mutating tool runs.
 
 `input` accepts Zod 4 and ArkType schemas and converts them to JSON Schema for
 you. It also accepts raw JSON Schema, which `webmcpable` passes through without

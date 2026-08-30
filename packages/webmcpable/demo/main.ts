@@ -39,7 +39,7 @@ const registry = tools({
     description: 'Add a product to the shopping cart by its identifier.',
     input: z.object({ id: z.string().describe('The product id') }),
     // Deliberately wrong: the MCP envelope every other library ships.
-    handler: ({ id }) => {
+    execute: ({ id }) => {
       cart.push(id)
       count.textContent = `cart: ${cart.length}`
       void registry.revalidate()
@@ -51,7 +51,7 @@ const registry = tools({
     description: 'Clears',
     // Deliberately wrong: not in the draft, silently ignored by the browser.
     annotations: { destructiveHint: true } as never,
-    handler: () => {
+    execute: () => {
       cart.length = 0
       count.textContent = 'cart: 0'
       void registry.revalidate()
@@ -61,7 +61,7 @@ const registry = tools({
 
   search_products: {
     description: 'Search the product catalogue by keyword and return matching items.',
-    handler: ({ q }) => `Found 3 products matching "${q}"`,
+    execute: ({ q }) => `Found 3 products matching "${q}"`,
     input: z.object({ q: z.string().describe('Search keywords, e.g. "blue running shoes"') }),
   },
 
@@ -70,7 +70,7 @@ const registry = tools({
   // If it shows neither, getTools() simply does not expose annotations.
   checkout: {
     description: 'Check out the current cart and place the order.',
-    handler: ({ address }) => `Order placed, shipping to ${address}`,
+    execute: ({ address }) => `Order placed, shipping to ${address}`,
     input: z.object({ address: z.string().describe('Delivery address') }),
     when: () => cart.length > 0,
   },
@@ -78,7 +78,7 @@ const registry = tools({
   view_cart: {
     annotations: { readOnlyHint: true },
     description: 'List the items currently in the shopping cart.',
-    handler: () => (cart.length ? `Cart: ${cart.join(', ')}` : 'Cart is empty'),
+    execute: () => (cart.length ? `Cart: ${cart.join(', ')}` : 'Cart is empty'),
   },
 })
 

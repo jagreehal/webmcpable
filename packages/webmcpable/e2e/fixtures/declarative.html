@@ -1,0 +1,17 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>webmcpable declarative harness</title>
+<h1>webmcpable declarative harness</h1>
+
+<!-- The browser registers this one. No script involved. -->
+<form toolname="book_table" tooldescription="Book a table for tonight" action="landing.html">
+  <input name="people" toolparamdescription="How many people are coming" />
+  <button>Book</button>
+</form>
+
+<script type="module">
+  import { tools, isSupported } from '/dist/index.js'
+  import { analyzeChange, analyzeTool } from '/dist/debug.js'
+  window.webmcpable = { analyzeChange, analyzeTool, isSupported, tools }
+  document.title = 'ready'
+</script>
