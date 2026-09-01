@@ -12,6 +12,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./local": {
+      "types": "./dist/local.d.ts",
+      "import": "./dist/local.js"
+    },
     "./react": {
       "types": "./dist/react.d.ts",
       "import": "./dist/react.js"
@@ -115,6 +119,9 @@
     "tools",
     "model-context-protocol",
     "document.modelContext",
+    "prompt-api",
+    "gemini-nano",
+    "built-in-ai",
     "react",
     "vue",
     "svelte",
@@ -125,6 +132,7 @@
   "files": [
     "dist",
     "README.md",
+    "SKILL.md",
     "LICENSE",
     "webmcp-idl.snapshot.json"
   ],

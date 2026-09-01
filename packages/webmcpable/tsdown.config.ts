@@ -8,6 +8,7 @@ export default defineConfig([
       debug: 'src/debug/index.ts',
       effect: 'src/effect/index.ts',
       index: 'src/index.ts',
+      local: 'src/local.ts',
       react: 'src/react/index.ts',
       // Must keep the .svelte.js suffix: a consumer's Svelte plugin only compiles
       // runes in files named that way. Shipping it as plain .js leaves $effect
