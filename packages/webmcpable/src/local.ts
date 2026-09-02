@@ -13,11 +13,6 @@ export interface LocalTool {
   name: string
 }
 
-// The Prompt API hands `execute` the arguments and nothing else, so there is no
-// per-call signal to forward. A never-aborted one keeps handlers written for
-// `tools()` working unchanged.
-const noSignal = new AbortController().signal
-
 /**
  * The same tool definitions `tools()` registers with `document.modelContext`,
  * in the shape the on-device Prompt API wants.
@@ -48,11 +43,14 @@ export function localTools(
     // `false` takes the tool away; a reason string keeps it listed so the model
     // is told why, exactly as on the WebMCP path.
     if (def.when?.() === false) {return []}
+    // The Prompt API hands `execute` the arguments and nothing else, and a
+    // session has no registration to bind a lifetime to, so `toolExecutor`'s
+    // own never-aborting fallback is exactly right here.
     const execute = toolExecutor(name, def, options)
     return [
       {
         description: def.description,
-        execute: (input: unknown) => execute(input, { signal: noSignal }),
+        execute: (input: unknown) => execute(input),
         inputSchema: toJsonSchema(def.input),
         name,
       },

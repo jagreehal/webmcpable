@@ -206,14 +206,26 @@ export const descriptorKey = (
  * confirms exactly like the WebMCP one. A tool the user cannot reach must not
  * become reachable because the model asking for it happens to live in the page.
  */
+/** A signal that never fires, for a caller with no lifetime to bind to. */
+const neverAborts = (): AbortSignal => new AbortController().signal
+
 export function toolExecutor(
   name: string,
   def: ToolDef,
   options: RegistryOptions = {},
   descriptorChanged: () => boolean = () => false,
-): (input: unknown, callOptions: { signal: AbortSignal }) => Promise<string> {
+  /**
+   * What `execute` receives as its second argument when the caller supplies
+   * none. Chrome does: it invokes a registered `execute` with the input and
+   * nothing else, so without this a handler written to the documented
+   * `(input, { signal })` signature destructures `undefined`. Measured in
+   * e2e/cdp.conformance.ts.
+   */
+  fallbackSignal: AbortSignal = neverAborts(),
+): (input: unknown, callOptions?: { signal: AbortSignal }) => Promise<string> {
   const title = effectiveTitle(def, options.titles)
   return async (raw, callOptions) => {
+    const call = callOptions ?? { signal: fallbackSignal }
     const parsed = await validate(def.input, raw)
     // Chrome discards thrown messages, so a validation failure has to be
     // *returned* as text or the agent learns nothing.
@@ -241,7 +253,7 @@ export function toolExecutor(
         })
         if (!ok) {return `${name} was not confirmed.`}
       }
-      return def.execute(validated(parsed.value), callOptions)
+      return def.execute(validated(parsed.value), call)
     })
   }
 }
@@ -270,8 +282,16 @@ export function tools(defs: Record<string, ToolDef>, options: RegistryOptions = 
           ...(title !== undefined && { title }),
           inputSchema: toJsonSchema(def.input),
           ...(def.annotations && { annotations: def.annotations }),
-          execute: toolExecutor(name, def, options, () =>
-            firstSeen.get(name) !== descriptorKey(name, def, options.titles),
+          execute: toolExecutor(
+            name,
+            def,
+            options,
+            () => firstSeen.get(name) !== descriptorKey(name, def, options.titles),
+            // Chrome passes the handler no per-call signal, so the one it gets
+            // is this tool's registration: it aborts when the tool is
+            // unregistered or the registry unmounts. A cancelled *invocation*
+            // is invisible to the page — also measured in the CDP lane.
+            controller.signal,
           ),
         } as WebMCP.ModelContextTool,
         {

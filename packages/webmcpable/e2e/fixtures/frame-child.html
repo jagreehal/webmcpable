@@ -1,0 +1,14 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>webmcpable frame child</title>
+<script type="module">
+  import { tools } from '/dist/index.js'
+  await tools({
+    // The same name the parent uses. Both registrations succeed — the browser
+    // only refuses a duplicate within one document.
+    duplicate: { description: 'Registered in the child frame', execute: () => ({ scope: 'frame' }) },
+    // A name nobody else claims, to show the frame itself is reachable.
+    child_only: { description: 'Only the child registers this', execute: () => ({ scope: 'frame' }) },
+  }).mount()
+  document.body.dataset.ready = 'true'
+</script>

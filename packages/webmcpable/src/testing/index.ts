@@ -19,7 +19,7 @@ export interface RecordedCall {
 interface Entry {
   annotations?: Record<string, unknown>
   description: string
-  execute: (input: unknown, options: { signal: AbortSignal }) => unknown
+  execute: (input: unknown, options?: { signal: AbortSignal }) => unknown
   inputSchema?: unknown
   name: string
   title?: string
@@ -73,7 +73,11 @@ export function installTestModelContext(): TestModelContext {
 
       let value: unknown
       try {
-        value = await entry.execute(input, { signal: new AbortController().signal })
+        // One argument. Measured in Chrome 152 (e2e/cdp.conformance.ts): the
+        // browser calls a registered `execute` with the input and nothing
+        // else. Handing the handler a second argument here would hide the very
+        // gap webmcpable exists to close.
+        value = await entry.execute(input)
       } catch {
         // Chrome discards the original message. Reproduce that, so nobody
         // builds an error strategy that only works in tests.
