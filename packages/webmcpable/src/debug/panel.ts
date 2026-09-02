@@ -1,4 +1,4 @@
-import { analyzeChange, analyzeResult, analyzeTool, type Finding, type InspectedTool } from './analyze'
+import { analyzeChange, analyzeContext, analyzeResult, analyzeTool, type Finding, type InspectedTool } from './analyze'
 import { exampleInput } from './example'
 import { buildReport, type CallRecord, type ReportRow } from './report'
 
@@ -181,6 +181,10 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
     const errors = rows.flatMap((r) => [...r.findings, ...(r.resultFindings ?? [])])
       .filter((f) => f.severity === 'error').length
 
+    // A finding about the document rather than any one tool: tools registered
+    // from a child frame are never advertised to a client.
+    const context = analyzeContext({ isTopFrame: window.top === window }).map(findingHtml).join('')
+
     host.innerHTML = `
       <header data-toggle>
         <b>webmcpable</b>
@@ -190,7 +194,7 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
         <button data-refresh>↻</button>
         <span>${open ? '▾' : '▸'}</span>
       </header>
-      ${open ? `<div class="body">${body}</div>` : ''}`
+      ${open ? `<div class="body">${context}${body}</div>` : ''}`
     host.prepend(style)
   }
 

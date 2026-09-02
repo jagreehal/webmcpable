@@ -64,6 +64,27 @@ const parseSchema = (schema: unknown): Record<string, unknown> | undefined => {
   return typeof schema === 'object' && schema !== null ? (schema as Record<string, unknown>) : undefined
 }
 
+/**
+ * Checks on where the tools are registered rather than what they say.
+ *
+ * Measured in Chrome 152 (e2e/cdp.conformance.ts): a same-origin child frame
+ * may register tools, they appear in the page's own `getTools()`, and a client
+ * attached to the top-level page is never advertised them. Nothing throws on
+ * either side, so a widget in an iframe can ship a tool set no agent can see.
+ */
+export function analyzeContext(context: { isTopFrame: boolean }): Array<Finding> {
+  if (context.isTopFrame) {return []}
+  return [
+    {
+      code: 'child-frame-tools',
+      fix: 'Register these tools from the top-level document, or check the agent you target reads child frames.',
+      message:
+        'This document is a child frame. Chrome lists its tools to the page but does not advertise them to a client attached to the top-level page, so an agent may never see them.',
+      severity: 'warning',
+    },
+  ]
+}
+
 export function analyzeResult(result: string): Array<Finding> {
   const findings: Array<Finding> = []
 

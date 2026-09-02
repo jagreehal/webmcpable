@@ -165,6 +165,64 @@ view_product: {
 `doctor` flags a tool that navigates without deferring. Client-side routers are
 fine — nothing unloads. Call `mount()` again on the page you land on.
 
+## The path an agent actually takes
+
+Everything above describes the page's side. An agent is not in the page. Chrome
+exposes WebMCP to a client over a CDP `WebMCP` domain — `toolsAdded`,
+`invokeTool`, `cancelInvocation`, `toolResponded` — and the reference client is
+[agent-browser](https://github.com/vercel-labs/agent-browser), whose
+`agent-browser webmcp list | invoke | result | cancel` is what calling your page
+looks like from outside.
+
+That crossing has rules the in-page API does not, all measured in
+[`e2e/cdp.conformance.ts`](./packages/webmcpable/e2e/cdp.conformance.ts):
+
+| In the page | What a client sees |
+| --- | --- |
+| `return { count: 3 }` | `output: { "count": 3 }` — structured. Chrome parses the JSON `webmcpable` serialised |
+| `return 'Added'` | `output: "Added"` |
+| `return undefined` | `output: "Operation succeeded"` |
+| `throw new Error('out of stock')` | `status: "Completed"`, `output: "Error: out of stock"` |
+| a tool registered in a same-origin child frame | *nothing*. Never advertised |
+
+The fourth row is a trade rather than a bug. Chrome replaces a thrown message
+with a generic `UnknownError` on the in-page path, so `webmcpable` catches and
+returns the text — which is the only way an agent reads what went wrong. The
+cost is that a client watching `status` alone sees success. A tool that throws
+without the library reports `status: "Error"`, and an unreadable message.
+
+### Your handler's second argument
+
+`execute` is typed `(input, { signal })`, and Chrome calls a registered
+`execute` with **one argument**. `webmcpable` supplies the second itself, so the
+documented signature works; called directly, `registerTool` would hand your
+handler `undefined` and a destructure would throw.
+
+That `signal` is the tool's *registration*. It aborts when the tool is
+unregistered — `unmount()`, or a `revalidate()` where `when` stopped holding —
+so a long-running handler can drop work the user can no longer reach.
+
+It is not a per-call cancellation. A client can cancel an invocation, and
+Chrome tells the client it was `Canceled` while telling the page nothing: the
+handler keeps running, its promise never settles, its signal never fires. Do
+not leave a handler waiting on something that may never arrive.
+
+### Tools in an iframe
+
+A child frame needs `allow="tools"` before it may register at all. Even with
+it, a same-origin child's tools reach the page's own `getTools()` and are never
+advertised to a client attached to the top-level page — no error on either
+side. Register from the top-level document. A cross-origin child is a separate
+target with its own tool set, which only a client that attaches per-frame will
+read.
+
+### What a client refuses
+
+`agent-browser` caps input at 1 MB, output at 2 MB, a tool record at 256 KB and
+the list at 512 tools, and returns `webmcp_output_too_large` rather than
+truncating. Returning the state you changed is still right — return the fields
+the agent needs, not every row you have.
+
 ## Tools that follow page state
 
 A tool the agent cannot use is worse than no tool. `when:` decides whether to
@@ -348,6 +406,12 @@ asserts. When it fails, the copy is wrong, not the browser. It regenerates
 as it goes, so the measurements are output rather than prose someone remembered
 to update.
 
+A third lane drives the same build the way an agent does, over CDP rather than
+from inside the page, because those are not the same code path —
+[`e2e/cdp.conformance.ts`](./packages/webmcpable/e2e/cdp.conformance.ts). It is
+what measured that Chrome calls `execute` with one argument, which is why
+`webmcpable` supplies the second.
+
 Use the same split in your own app: unit tests against `webmcpable/testing` on
 every commit, a small conformance lane against real Chrome to catch the day the
 browser moves.
@@ -430,8 +494,9 @@ The panel lists every registered tool next to the result string an agent
 receives. It flags MCP envelopes, thin descriptions, undescribed parameters,
 invalid names, descriptions phrased as instructions to the agent, a `title` that
 does not match the name, and tools redefined under a name the agent already had.
-It keeps a journal of resolved calls — name and arguments, not the label. Copy
-its report as Markdown.
+It flags a document that is a child frame, whose tools a client may never be
+advertised. It keeps a journal of resolved calls — name and arguments, not the
+label. Copy its report as Markdown.
 
 ## Track the draft
 
@@ -460,6 +525,10 @@ the current document tree need access — exact secure origins only, measured in
 Chrome refuses plain `http:` and has no wildcard. Pass `{ titles: 'off' }` to withhold
 `title` from the browser, and `confirm` (a function, or `true` for
 `window.confirm`) to ask before a mutating tool runs.
+
+`execute` receives `(input, { signal })`. That signal aborts when the tool is
+unregistered, not when an agent cancels a call — see [the path an agent actually
+takes](#the-path-an-agent-actually-takes).
 
 `localTools()` takes the same definitions and returns a plain array for
 `LanguageModel.create({ tools })` — no registry, no lifecycle.

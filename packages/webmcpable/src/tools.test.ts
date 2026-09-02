@@ -215,3 +215,43 @@ describe('tools()', () => {
     await expect(modelContext().executeTool(tool!, '{}')).resolves.toMatch(/boom/)
   })
 })
+
+describe('the options argument the platform does not pass', () => {
+  beforeEach(() => installTestModelContext())
+
+  // Measured in Chrome 152 (e2e/cdp.conformance.ts): the browser invokes a
+  // registered `execute` with the input and nothing else. A handler written to
+  // the documented `(input, { signal })` signature therefore destructures
+  // `undefined` unless webmcpable supplies the second argument itself.
+  it('reaches the handler even when the browser calls execute with one argument', async () => {
+    let seen: { signal: AbortSignal } | undefined
+    const r = tools({
+      a: {
+        description: 'a',
+        execute: (_input, options) => {
+          seen = options
+          return 'ok'
+        },
+      },
+    })
+    await r.mount()
+
+    const [tool] = await modelContext().getTools()
+    expect(await modelContext().executeTool(tool!, '{}')).toBe('ok')
+    expect(seen?.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('aborts that signal when the tool is unregistered', async () => {
+    let seen: { signal: AbortSignal } | undefined
+    const r = tools({
+      a: { description: 'a', execute: (_input, options) => ((seen = options), 'ok') },
+    })
+    await r.mount()
+    const [tool] = await modelContext().getTools()
+    await modelContext().executeTool(tool!, '{}')
+
+    expect(seen?.signal.aborted).toBe(false)
+    r.unmount()
+    expect(seen?.signal.aborted).toBe(true)
+  })
+})

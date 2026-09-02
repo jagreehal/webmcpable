@@ -1,0 +1,16 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>webmcpable frame harness</title>
+<h1>webmcpable frame harness</h1>
+<!--
+  `allow="tools"` is the permissions-policy token a child frame needs before it
+  may register into the page at all.
+-->
+<iframe id="child" src="/e2e/fixtures/frame-child.html" allow="tools"></iframe>
+<script type="module">
+  import { tools } from '/dist/index.js'
+  await tools({
+    duplicate: { description: 'Registered in the main frame', execute: () => ({ scope: 'main' }) },
+  }).mount()
+  document.title = 'ready'
+</script>

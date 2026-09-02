@@ -1,5 +1,5 @@
 export { mountDebugPanel } from './panel'
-export { analyzeChange, analyzeResult, analyzeTool } from './analyze'
+export { analyzeChange, analyzeContext, analyzeResult, analyzeTool } from './analyze'
 export { exampleInput } from './example'
 export { buildReport } from './report'
 export type { DebugPanelOptions } from './panel'

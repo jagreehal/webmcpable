@@ -1,6 +1,6 @@
 ---
 name: webmcpable
-description: Write WebMCP tools with webmcpable so an AI agent can drive a web app. Covers tool definitions, `when` gating, result shapes, framework adapters, the on-device Prompt API via `webmcpable/local`, and testing without a supporting browser. Use when adding, reviewing, or debugging `document.modelContext`, `tools()`, `useTools()`, `effectTools()`, `localTools()`, or anything WebMCP in a browser app.
+description: Write WebMCP tools with webmcpable so an AI agent can drive a web app. Covers tool definitions, `when` gating, result shapes, framework adapters, the on-device Prompt API via `webmcpable/local`, and testing without a supporting browser. Use when adding, reviewing, or debugging `document.modelContext`, `tools()`, `useTools()`, `effectTools()`, `localTools()`, or anything WebMCP in a browser app — including what an agent sees over CDP (`agent-browser webmcp list|invoke`).
 ---
 
 # webmcpable
@@ -56,6 +56,41 @@ or `undefined`, and throw normally — the agent reads `Error: out of stock`.
 
 Only two annotations exist: `readOnlyHint` and `untrustedContentHint`. Set
 `untrustedContentHint` on any tool returning user content or fetched data.
+
+## What an agent sees, which is not what the page sees
+
+An agent is not in the page. It drives Chrome's CDP `WebMCP` domain from
+outside — `agent-browser webmcp list | invoke | result | cancel` is the
+reference client. Measured in Chrome 152:
+
+| In the page | What the client gets |
+| --- | --- |
+| `return { count: 3 }` | `output: { "count": 3 }`, structured — Chrome parses what webmcpable serialised |
+| `return undefined` | `output: "Operation succeeded"` |
+| `throw new Error('out of stock')` | `status: "Completed"`, `output: "Error: out of stock"` |
+| a tool registered in a same-origin child frame | nothing — never advertised, no error |
+
+The third row is deliberate: Chrome erases a thrown message in the page, so
+webmcpable returns it as text. A client watching `status` alone will not see the
+failure. Say what went wrong in the returned text.
+
+**`execute`'s second argument.** Chrome calls a registered `execute` with one
+argument. webmcpable supplies `{ signal }` itself so the documented signature
+works — with raw `registerTool` your handler gets `undefined` and a destructure
+throws.
+
+**That signal is registration, not cancellation.** It aborts on `unmount()` or a
+`revalidate()` where `when` stopped holding. When a client cancels an
+invocation, Chrome tells the client `Canceled` and tells the page nothing: the
+handler runs on, the promise never settles. Never leave a handler awaiting
+something that may never arrive.
+
+**Iframes.** A child frame needs `allow="tools"` to register at all, and a
+same-origin child's tools still never reach a client attached to the top-level
+page. Register from the top-level document.
+
+**Client ceilings.** agent-browser caps input at 1 MB, output at 2 MB, and 512
+tools, refusing rather than truncating.
 
 ## Rules to follow when writing tools
 
@@ -139,15 +174,33 @@ expect(mc.calls).toEqual([
 ])
 ```
 
-It reproduces Chrome's JSON-string arguments, serialization, error handling and
-lexicographical ordering. Back it with a small conformance lane against real
-Chrome (`pnpm --filter webmcpable test:conformance` in this repo) for the day the
-browser moves.
+It reproduces Chrome's JSON-string arguments, one-argument `execute` calls,
+serialization, error handling and lexicographical ordering. Back it with a
+conformance lane against real Chrome (`pnpm --filter webmcpable test:conformance`
+in this repo), including one case driven over CDP the way an agent drives it —
+in-page and out-of-process are not the same code path.
 
 `toolSchemas()` writes the registry's schemas to a file for
 [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals);
 `JSON.stringify(await getTools())` cannot stand in — a `RegisteredTool` carries
 its owner `Window` and throws on a circular structure.
+
+## Prove it before shipping
+
+Deterministic tests answer "does the tool work". They do not answer "will a
+model pick it". For a workflow that matters, keep an artifact next to it:
+
+```text
+artifacts/<domain>/<task>/
+  manifest.json     goal, required page state, expected calls, expected UI change, excluded secrets
+  eval.json         cases for webmcp-evals
+  eval-report.md    results, including one contaminated-description case
+```
+
+Compare at least one task against plain accessibility-tree automation and record
+success, tool calls, latency and tokens — that comparison is the reason to ship
+tools at all. If no model runtime is available, record what was missing and mark
+the comparison blocked rather than claiming it passed.
 
 ## Check it
 
@@ -157,8 +210,9 @@ npx webmcpable spec-check    # drift alarm against the live draft WebIDL
 ```
 
 `mountDebugPanel()` from `webmcpable/debug` shows each tool next to the result
-string an agent actually receives, flags MCP envelopes, thin descriptions and
-descriptions phrased as orders, and journals resolved calls.
+string an agent actually receives, flags MCP envelopes, thin descriptions,
+descriptions phrased as orders, and a document that is a child frame, and
+journals resolved calls.
 
 ## Security boundary
 

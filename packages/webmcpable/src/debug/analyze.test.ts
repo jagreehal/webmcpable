@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { analyzeResult, analyzeTool } from './analyze'
+import { analyzeContext, analyzeResult, analyzeTool } from './analyze'
 
 const codes = (xs: Array<{ code: string }>) => xs.map((x) => x.code).sort()
 
@@ -111,5 +111,20 @@ describe('character budgets', () => {
   it('flags a result over 1.5K, which an agent may not read whole', () => {
     expect(codes(analyzeResult('x'.repeat(1501)))).toContain('over-budget-result')
     expect(codes(analyzeResult('x'.repeat(1500)))).not.toContain('over-budget-result')
+  })
+})
+
+describe('analyzeContext', () => {
+  it('says nothing when the page owns the top frame', () => {
+    expect(analyzeContext({ isTopFrame: true })).toEqual([])
+  })
+
+  // Measured in Chrome 152 (e2e/cdp.conformance.ts): a same-origin child
+  // frame's registrations appear in the page's own getTools() and never reach
+  // a client. Nothing throws, so the panel is the only place to learn it.
+  it('warns that a child frame’s tools may never reach an agent', () => {
+    const [finding] = analyzeContext({ isTopFrame: false })
+    expect(finding?.code).toBe('child-frame-tools')
+    expect(finding?.severity).toBe('warning')
   })
 })
