@@ -42,6 +42,10 @@
     "./testing": {
       "types": "./dist/testing.d.ts",
       "import": "./dist/testing.js"
+    },
+    "./testing/playwright": {
+      "types": "./dist/testing-playwright.d.mts",
+      "import": "./dist/testing-playwright.mjs"
     }
   },
   "scripts": {
@@ -53,7 +57,8 @@
     "prepublishOnly": "pnpm build",
     "spec-check": "pnpm build && node dist/cli.mjs spec-check",
     "spec-pin": "pnpm build && node dist/cli.mjs spec-pin",
-    "test:conformance": "pnpm build && playwright test"
+    "test:conformance": "pnpm build && playwright test",
+    "test:fixture": "pnpm build && playwright test -c playwright.fixture.config.ts"
   },
   "dependencies": {
     "webmcp-types": "0.1.5"
@@ -85,12 +90,16 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
+    "@playwright/test": ">=1.40",
     "effect": "^4.0.0-rc",
     "react": ">=18",
     "svelte": ">=5",
     "vue": ">=3.4"
   },
   "peerDependenciesMeta": {
+    "@playwright/test": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },
@@ -126,7 +135,9 @@
     "vue",
     "svelte",
     "effect",
-    "w3c"
+    "w3c",
+    "playwright",
+    "testing"
   ],
   "sideEffects": false,
   "files": [

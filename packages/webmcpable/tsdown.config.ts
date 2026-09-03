@@ -29,6 +29,34 @@ export default defineConfig([
     },
   },
   {
+    // The Playwright helper runs in the test process, not the page, so it needs
+    // node: builtins and must keep @playwright/test external — the consumer
+    // already has one, and two copies of the runner do not share fixtures.
+    clean: false,
+    deps: { neverBundle: ['@playwright/test'], onlyBundle: false },
+    dts: true,
+    entry: { 'testing-playwright': 'src/testing/playwright.ts' },
+    format: ['esm'],
+    platform: 'node',
+    sourcemap: true,
+    target: 'node20',
+    treeshake: true,
+  },
+  {
+    // The same fake, bundled flat so `page.addInitScript({ path })` can hand it
+    // to a browser. No imports and no exports survive here by design: an init
+    // script is evaluated as a plain script, and a bare `import` would throw
+    // before the fake was ever installed.
+    clean: false,
+    dts: false,
+    entry: { 'testing-browser': 'src/testing/browser.ts' },
+    format: ['iife'],
+    platform: 'browser',
+    sourcemap: false,
+    target: 'es2022',
+    treeshake: true,
+  },
+  {
     // The CLI is a `bin`, never an export, so no bundler reaches it and the
     // browser entries above stay free of node: imports.
     clean: false,

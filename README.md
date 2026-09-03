@@ -51,7 +51,9 @@ draft spec still moves.
 `webmcpable` is safe to ship now. `mount()` and `revalidate()` do nothing when
 the browser has no `document.modelContext`, so users on every other browser
 carry no cost. To build against WebMCP without a supporting browser, use the
-in-memory harness in [`webmcpable/testing`](#test-without-a-supporting-browser).
+in-memory harness in [`webmcpable/testing`](#test-without-a-supporting-browser),
+and [`webmcpable/testing/playwright`](#end-to-end-in-playwright) for
+end-to-end tests.
 
 Two things this library leaves alone. It does not bridge desktop MCP clients to
 your page, and it does not polyfill WebMCP. The browser owns declarative
@@ -388,6 +390,58 @@ expect(mc.calls).toEqual([
 The harness reproduces Chrome's JSON-string arguments, result serialization,
 error handling, registration validation, and lexicographical tool ordering.
 
+### End-to-end, in Playwright
+
+`webmcpable/testing` puts the fake in the *test* process, which is all a
+component test needs. An end-to-end test has the opposite problem: the
+application runs in a browser, and Playwright's bundled Chromium carries no
+WebMCP at all. `webmcpable/testing/playwright` installs the same fake in the
+page instead, so a suite that never sees a flagged Chrome can still call the
+tools an agent would call.
+
+```ts
+import { expect, test } from 'webmcpable/testing/playwright'
+
+test('an agent calling a tool moves what the user sees', async ({ modelContext, page }) => {
+  await page.goto('/cart')
+
+  const result = await modelContext.callTool('add_to_cart', { qty: 2, sku: 'espresso' })
+
+  expect(JSON.parse(result)).toEqual({ sku: 'espresso', total: 2 })
+  await expect(page.getByTestId('cart-count')).toHaveText('2')
+})
+```
+
+The second assertion is the one that carries weight. A tool reporting success
+over a cart that never changed has told the agent a lie, and only the UI check
+catches it.
+
+`modelContext` offers three things:
+
+- `getTools()`, with `inputSchema` already parsed. The browser hands that back
+  as a JSON string, and reaching for `.properties` on it is the most common way
+  a WebMCP test passes for the wrong reason.
+- `callTool(name, input)`, which serialises the input to the JSON string Chrome
+  demands and looks the tool up the way an agent does.
+- `calls()`, every invocation so far with its input, for asserting what the
+  agent actually did rather than only what the page now shows.
+
+For a suite that already has its own fixtures, `installTestModelContext(page)`
+is the same thing without the `test` export. Call it before the first `goto` —
+the fake goes in through `addInitScript`, so it has to be in place before the
+page registers anything.
+
+```ts
+import { test as base } from '@playwright/test'
+import { installTestModelContext } from 'webmcpable/testing/playwright'
+
+export const test = base.extend({
+  modelContext: async ({ page }, use) => {
+    await use(await installTestModelContext(page))
+  },
+})
+```
+
 ### Two lanes, because a transcription drifts
 
 `webmcpable/testing` is a hand-written copy of what a browser did when someone
@@ -412,9 +466,15 @@ from inside the page, because those are not the same code path —
 what measured that Chrome calls `execute` with one argument, which is why
 `webmcpable` supplies the second.
 
+A fourth lane, [`e2e/bundled-chromium.fixture.ts`](./packages/webmcpable/e2e/bundled-chromium.fixture.ts),
+runs `webmcpable/testing/playwright` in Playwright's own Chromium — the browser
+with no WebMCP in it — because that is the browser the helper exists for. Its
+first assertion is that Chromium still has no `document.modelContext`, so the
+lane cannot start passing for the wrong reason.
+
 Use the same split in your own app: unit tests against `webmcpable/testing` on
-every commit, a small conformance lane against real Chrome to catch the day the
-browser moves.
+every commit, end-to-end tests against `webmcpable/testing/playwright`, and a
+small conformance lane against real Chrome to catch the day the browser moves.
 
 ### Hand your tools to an eval
 

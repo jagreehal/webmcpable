@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>cart</title>
+<h1>Cart</h1>
+<p>Items: <span data-testid="cart-count">0</span></p>
+<button data-testid="add">Add an espresso</button>
+
+<script type="module">
+  // An ordinary application: it registers its tools on load and never checks
+  // whether the browser has WebMCP. It does not have to — `mount()` is a no-op
+  // where `document.modelContext` is absent, so one bundle ships everywhere.
+  // That is also why "ready" means the script ran, not that any tool exists:
+  // only the fixture's init script gives this page an API to register against.
+  import { tools } from '/dist/index.js'
+
+  let total = 0
+  const count = document.querySelector('[data-testid="cart-count"]')
+  const render = () => {
+    count.textContent = String(total)
+  }
+
+  const addToCart = ({ qty = 1, sku }) => {
+    total += qty
+    render()
+    return { sku, total }
+  }
+
+  document.querySelector('[data-testid="add"]').addEventListener('click', () => {
+    addToCart({ sku: 'espresso' })
+  })
+
+  await tools({
+    add_to_cart: {
+      description: 'Add an item to the cart',
+      execute: addToCart,
+      input: {
+        properties: { qty: { type: 'number' }, sku: { type: 'string' } },
+        required: ['sku'],
+        type: 'object',
+      },
+      title: 'Add to cart',
+    },
+    cart_total: {
+      annotations: { readOnlyHint: true },
+      description: 'How many items are in the cart',
+      execute: () => ({ total }),
+    },
+    out_of_stock: {
+      description: 'Always fails',
+      execute: () => {
+        throw new Error('the espresso ran out')
+      },
+    },
+  }).mount()
+
+  document.title = 'ready'
+</script>

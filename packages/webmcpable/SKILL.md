@@ -1,6 +1,6 @@
 ---
 name: webmcpable
-description: Write WebMCP tools with webmcpable so an AI agent can drive a web app. Covers tool definitions, `when` gating, result shapes, framework adapters, the on-device Prompt API via `webmcpable/local`, and testing without a supporting browser. Use when adding, reviewing, or debugging `document.modelContext`, `tools()`, `useTools()`, `effectTools()`, `localTools()`, or anything WebMCP in a browser app — including what an agent sees over CDP (`agent-browser webmcp list|invoke`).
+description: Write WebMCP tools with webmcpable so an AI agent can drive a web app. Covers tool definitions, `when` gating, result shapes, framework adapters, the on-device Prompt API via `webmcpable/local`, and testing without a supporting browser, in Node or end-to-end in Playwright. Use when adding, reviewing, or debugging `document.modelContext`, `tools()`, `useTools()`, `effectTools()`, `localTools()`, or anything WebMCP in a browser app — including what an agent sees over CDP (`agent-browser webmcp list|invoke`).
 ---
 
 # webmcpable
@@ -179,6 +179,29 @@ serialization, error handling and lexicographical ordering. Back it with a
 conformance lane against real Chrome (`pnpm --filter webmcpable test:conformance`
 in this repo), including one case driven over CDP the way an agent drives it —
 in-page and out-of-process are not the same code path.
+
+For an end-to-end test, the fake has to be in the *browser*, not the test
+process — and Playwright's bundled Chromium has no WebMCP at all. Use
+`webmcpable/testing/playwright`, which injects it with `addInitScript`:
+
+```ts
+import { expect, test } from 'webmcpable/testing/playwright'
+
+test('the agent and the user share one cart', async ({ modelContext, page }) => {
+  await page.goto('/cart')
+
+  const result = await modelContext.callTool('add_to_cart', { qty: 2, sku: 'espresso' })
+
+  expect(JSON.parse(result)).toEqual({ sku: 'espresso', total: 2 })
+  await expect(page.getByTestId('cart-count')).toHaveText('2')
+})
+```
+
+Always assert the UI too. A tool that reports success over a cart that never
+changed has told the agent a lie, and nothing else catches it. `getTools()`
+here returns `inputSchema` already parsed, `callTool` serialises the input, and
+`calls()` is what the agent did. `installTestModelContext(page)` is the same
+thing for a suite with its own fixtures — call it before the first `goto`.
 
 `toolSchemas()` writes the registry's schemas to a file for
 [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals);

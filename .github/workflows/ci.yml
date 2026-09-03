@@ -53,6 +53,15 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      # No flags and no Google Chrome, deliberately. The fixture lane's claim is
+      # that a suite can drive its tools in a browser with no WebMCP in it, so
+      # the browser it runs in has to be exactly that.
+      - name: Install Playwright's bundled Chromium
+        run: pnpm --filter webmcpable exec playwright install --with-deps chromium
+
+      - name: End-to-end fixture lane
+        run: pnpm --filter webmcpable test:fixture
+
       # Not the repo root: demo/ ships deliberately wrong tools to show what
       # the doctor catches, so scanning it would always fail the build.
       - name: Scan for WebMCP drift in our own source
