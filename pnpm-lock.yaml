@@ -70,8 +70,8 @@ importers:
         specifier: 4.0.0-rc.112
         version: 4.0.0-rc.112
       executable-stories-playwright:
-        specifier: 8.9.0
-        version: 8.9.0(@playwright/test@1.62.1)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)
+        specifier: 8.10.1
+        version: 8.10.1(@playwright/test@1.62.1)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(effect@4.0.0-rc.112)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3))
       happy-dom:
         specifier: 20.11.6
         version: 20.11.6
@@ -229,13 +229,13 @@ packages:
     resolution: {integrity: sha512-y7/yvZ2TPAnR9+jnc00klvNNLkJiXFFrQA/hlLCcxA9a2A4zQIOimyFQ9XfwYKiGD1fb5GY8vbKIIgO8d5Tb2A==}
     engines: {node: '>= 20.12.0'}
 
-  '@cucumber/html-formatter@23.1.0':
-    resolution: {integrity: sha512-DcCSFoGs6jbwzXPgX1CwgJKEE+ZMcIEzq/0Memg0o24maNn9NJizBFHmoFWG4iv/OxHza+mvc+56cTHetfHndw==}
+  '@cucumber/html-formatter@24.1.1':
+    resolution: {integrity: sha512-N7Y0P74qrIYM9pazsMKQ1KRnNg0u7LSHbX32Fs3dW9Afmjm2NNBXIEolT+rrDIZKxTAKHJOitJeE6YroB0uW0Q==}
     peerDependencies:
       '@cucumber/messages': '>=18'
 
-  '@cucumber/messages@32.3.1':
-    resolution: {integrity: sha512-yNQq1KoXRYaEKrWMFmpUQX7TdeQuU9jeGgJAZ3dArTsC/T4NpJ6DnqaJIIgwPnz/wtQIQTNX7/h0rOuF5xY4qQ==}
+  '@cucumber/messages@34.2.1':
+    resolution: {integrity: sha512-aj2iCAG9ZOpMVcMxcgShifv5fbR96b7SMgdWcPXXh2QbFp7OEcAnQ5MC5YfWUDSDasmw7FU5NJEsOrXdTQOU1A==}
 
   '@esbuild/aix-ppc64@0.28.2':
     resolution: {integrity: sha512-XExcO+dvLKvVtNTibSTBej1NCAbaGhWn9Ww1ZPx80qsahhPFe/8jgWP0IchNe0F3HwkU7n8ejhH8bjonqht8mQ==}
@@ -1631,9 +1631,6 @@ packages:
   cjs-module-lexer@2.2.1:
     resolution: {integrity: sha512-Ca8swihM+/4yKecYHY52kgJd300hi2lADU/a1RxNTRe+RJ9jvqQlESpbz9DnG9mowez8qwXHB8qYdIUw9e+F5Q==}
 
-  class-transformer@0.5.1:
-    resolution: {integrity: sha512-SQa1Ws6hUbfC98vKGxZH3KFY0Y1lm5Zm0SY8XX9zbK7FJCyVEac3ATW0RIpwzW+oOfmHE5PMPufDG9hCfoEOMw==}
-
   class-variance-authority@0.7.1:
     resolution: {integrity: sha512-Ka+9Trutv7G8M6WT6SeiRWz792K5qEqIGEGzXKhAE6xOWAY6pPH8U+9IY3oCMv6kqTmLsv7Xh/2w2RigkePMsg==}
 
@@ -1826,16 +1823,16 @@ packages:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
     engines: {node: '>=0.10.0'}
 
-  executable-stories-core@0.20.0:
-    resolution: {integrity: sha512-LF9wiD8jM0AMVcpADRIRFJuIUBcyN+LK1/0Qnw5DOq1GmMjm9gr7/qYS3wYbKi7HP8SVfqZ8qKyGxWqUDZatmA==}
+  executable-stories-core@0.22.0:
+    resolution: {integrity: sha512-gNPAQcW+9fIYRUybcertsi+ca3tEgQsf2N03j1G2SLDwqdJNaDhZHPBiVOEPEL1LLvFVyYQIC2JzZZTNR9U9YA==}
 
-  executable-stories-formatters@1.12.0:
-    resolution: {integrity: sha512-GLCTzloN/SIA/rAnBv5V2Xa73aKUF9mZkVTcRuvVQwPoHOdT8vaxnZzOq6xrmQe9EfiCYyMSHQSGS1mrqDBwrw==}
+  executable-stories-formatters@1.14.0:
+    resolution: {integrity: sha512-E/a/5eTKyBqb0b10ZHbwBvjyrefw4TVx6zwrNDSUljQkNuuCF8OYJdPiIy54/oabtbW6f+w+FIBTyOR2lk4yEw==}
     engines: {node: '>=22'}
     hasBin: true
 
-  executable-stories-playwright@8.9.0:
-    resolution: {integrity: sha512-hux25rWcfJg+HAhRiGWBnVFrx1Nja/q0SlUxZy8NRVporJ8ICt8Ga22QoCsFTO9ZwHSDTmek0Xg920D3+VrC3Q==}
+  executable-stories-playwright@8.10.1:
+    resolution: {integrity: sha512-s5mWSeff/AiiowwBeDdar+Y3tYlNFY5PkYVVvNvgWHeAAlGuewBoRsU7vxzaGR/8XryWnZ5QGSt7oPgHAaBHUg==}
     peerDependencies:
       '@playwright/test': '>=1.60.0'
       autotel: '>=3.4.4'
@@ -1843,8 +1840,8 @@ packages:
       autotel:
         optional: true
 
-  executable-stories-react@0.11.0:
-    resolution: {integrity: sha512-7wowQ43T1HlqJwx44vlpKaB/wXvvugwpmEw0ANyLIshKDBC2QnW3Zyub4DXR34o5DCw4W7m/7FsTuxNeHwYTIA==}
+  executable-stories-react@0.13.0:
+    resolution: {integrity: sha512-thC7c6MxhmZCT/u8TWgsAKS7VZb+TW8LISk8uuxy3m+KTLIq66rvygSFLGwCXjqBuoq3KgGM5SHryBZa35P5qQ==}
     peerDependencies:
       mermaid: '>=10'
       react: '>=19.2.7'
@@ -1876,8 +1873,8 @@ packages:
   fast-string-width@3.0.2:
     resolution: {integrity: sha512-gX8LrtNEI5hq8DVUfRQMbr5lpaS4nMIWV+7XEbXk2b8kiQIizgnlr12B4dA3ZEx3308ze0O4Q1R+cHts8kyUJg==}
 
-  fast-uri@3.1.6:
-    resolution: {integrity: sha512-7Ical1vFEMr0onbVzEDIreM22I4khW+fzyQPwvAFWBp1iwdshSZRsL4jjRvPG9JP1uiqMHRto+YU6R2/CzDz5Q==}
+  fast-uri@3.1.7:
+    resolution: {integrity: sha512-dOvZVzjdZdz7phd9v6jCbwxrBW3fK6n8Rc0CtdmM4bumzMnxywBYhuph6J819RRw/ku+rLbelwfMunktuzVVHg==}
 
   fast-wrap-ansi@0.2.2:
     resolution: {integrity: sha512-7F2Fl+TjRSenLqlU3UjSH0iyqopqoZIu7eZVpEirP2g1GtWa2G/ecEmBdgz31+Mxr+ELclgg6sokpSFIQiZ02Q==}
@@ -2123,8 +2120,8 @@ packages:
   lru-cache@10.4.3:
     resolution: {integrity: sha512-JNAzZcXrCt42VGLuYz0zfAzDfAvJWW6AfYlDBQyDV5DClI2m5sAmK+OIO7s59XfsRsWHp02jAJrRadPRGTt6SQ==}
 
-  lucide-react@0.469.0:
-    resolution: {integrity: sha512-28vvUnnKQ/dBwiCQtwJw7QauYnE7yd2Cyp4tTTJpvglX4EMpbflcdBgrgToX2j71B3YvugK/NH3BGUk+E/p/Fw==}
+  lucide-react@1.39.0:
+    resolution: {integrity: sha512-y8nXoEwvqqIsF927NBWXODa4bfMrcUeEb/9sgpwFqg0gUjgn3j5Hznk+v7STmPgZ2iQ11JKlbQGdFRuTOwvYkA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
@@ -2326,9 +2323,6 @@ packages:
   react@19.2.8:
     resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
     engines: {node: '>=0.10.0'}
-
-  reflect-metadata@0.2.2:
-    resolution: {integrity: sha512-urBwgfrvVP/eAyXx4hluJivBKzuEbSQs9rKWCrCkbSxNv8mxPcUZKeuoF3Uy4mJl3Lwprp6yy5/39VWigZ4K6Q==}
 
   require-from-string@2.0.2:
     resolution: {integrity: sha512-Xf0nWe6RseziFMu+Ap9biiUbmplq6S9/p+7w7YXP/JBHhrUDDUhwa+vANyubuqfZWTveU//DYVGsDG7RKL/vEw==}
@@ -2710,6 +2704,24 @@ packages:
   webmcp-types@0.1.5:
     resolution: {integrity: sha512-QAfuzNJ+hiY2JLpPbD/6xZruLQlsqtWUDqQCRruqD0dbtZHDg6IUZ2K0zctlRokwuscGlr47i6hKv8mQPSQLhw==}
 
+  webmcpable@0.3.0:
+    resolution: {integrity: sha512-OWL2qvs54lBstdmBq8tuP+dMc/Ggr/+lp2rIzcteiEJd3aXYh9f2I2jwMwlKEv+rAYDgLkWc7bXeNjUjHMu3uQ==}
+    hasBin: true
+    peerDependencies:
+      effect: ^4.0.0-rc
+      react: '>=18'
+      svelte: '>=5'
+      vue: '>=3.4'
+    peerDependenciesMeta:
+      effect:
+        optional: true
+      react:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+
   whatwg-mimetype@3.0.0:
     resolution: {integrity: sha512-nt+N2dzIutVRxARx1nghPKGv1xHikU7HKdfafKkLNLindmPU/ch3U31NOCGGA/dmPcmb1VlofO0vnKAcsm0o/Q==}
     engines: {node: '>=12'}
@@ -2771,6 +2783,9 @@ packages:
 
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
+  zod@4.5.4:
+    resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
 
 snapshots:
 
@@ -2934,14 +2949,11 @@ snapshots:
       fast-wrap-ansi: 0.2.2
       sisteransi: 1.0.5
 
-  '@cucumber/html-formatter@23.1.0(@cucumber/messages@32.3.1)':
+  '@cucumber/html-formatter@24.1.1(@cucumber/messages@34.2.1)':
     dependencies:
-      '@cucumber/messages': 32.3.1
+      '@cucumber/messages': 34.2.1
 
-  '@cucumber/messages@32.3.1':
-    dependencies:
-      class-transformer: 0.5.1
-      reflect-metadata: 0.2.2
+  '@cucumber/messages@34.2.1': {}
 
   '@esbuild/aix-ppc64@0.28.2':
     optional: true
@@ -3955,7 +3967,7 @@ snapshots:
   ajv@8.20.0:
     dependencies:
       fast-deep-equal: 3.1.3
-      fast-uri: 3.1.6
+      fast-uri: 3.1.7
       json-schema-traverse: 1.0.0
       require-from-string: 2.0.2
 
@@ -4034,8 +4046,6 @@ snapshots:
   check-error@2.1.3: {}
 
   cjs-module-lexer@2.2.1: {}
-
-  class-transformer@0.5.1: {}
 
   class-variance-authority@0.7.1:
     dependencies:
@@ -4246,15 +4256,15 @@ snapshots:
 
   esutils@2.0.3: {}
 
-  executable-stories-core@0.20.0: {}
+  executable-stories-core@0.22.0: {}
 
-  executable-stories-formatters@1.12.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18):
+  executable-stories-formatters@1.14.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(effect@4.0.0-rc.112)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3)):
     dependencies:
-      '@cucumber/html-formatter': 23.1.0(@cucumber/messages@32.3.1)
-      '@cucumber/messages': 32.3.1
+      '@cucumber/html-formatter': 24.1.1(@cucumber/messages@34.2.1)
+      '@cucumber/messages': 34.2.1
       ajv: 8.20.0
-      executable-stories-core: 0.20.0
-      executable-stories-react: 0.11.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      executable-stories-core: 0.22.0
+      executable-stories-react: 0.13.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(effect@4.0.0-rc.112)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3))
       github-slugger: 2.0.0
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
@@ -4264,38 +4274,48 @@ snapshots:
       - '@types/react'
       - '@types/react-dom'
       - date-fns
+      - effect
       - mermaid
+      - svelte
+      - vue
 
-  executable-stories-playwright@8.9.0(@playwright/test@1.62.1)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18):
+  executable-stories-playwright@8.10.1(@playwright/test@1.62.1)(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(effect@4.0.0-rc.112)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3)):
     dependencies:
       '@playwright/test': 1.62.1
-      executable-stories-core: 0.20.0
-      executable-stories-formatters: 1.12.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)
+      executable-stories-core: 0.22.0
+      executable-stories-formatters: 1.14.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(effect@4.0.0-rc.112)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3))
     transitivePeerDependencies:
       - '@date-fns/tz'
       - '@types/react'
       - '@types/react-dom'
       - date-fns
+      - effect
       - mermaid
+      - svelte
+      - vue
 
-  executable-stories-react@0.11.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8):
+  executable-stories-react@0.13.0(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(effect@4.0.0-rc.112)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3)):
     dependencies:
       '@base-ui/react': 1.7.0(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       class-variance-authority: 0.7.1
       clsx: 2.1.1
       cmdk: 1.1.1(@types/react-dom@19.2.5(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      executable-stories-core: 0.20.0
-      lucide-react: 0.469.0(react@19.2.8)
+      executable-stories-core: 0.22.0
+      lucide-react: 1.39.0(react@19.2.8)
       marked: 18.0.11
       react: 19.2.8
       react-dom: 19.2.8(react@19.2.8)
       tailwind-merge: 3.6.0
-      zod: 4.4.3
+      webmcpable: 0.3.0(effect@4.0.0-rc.112)(react@19.2.8)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3))
+      zod: 4.5.4
     transitivePeerDependencies:
       - '@date-fns/tz'
       - '@types/react'
       - '@types/react-dom'
       - date-fns
+      - effect
+      - svelte
+      - vue
 
   expect-type@1.4.0: {}
 
@@ -4315,7 +4335,7 @@ snapshots:
     dependencies:
       fast-string-truncated-width: 3.0.3
 
-  fast-uri@3.1.6: {}
+  fast-uri@3.1.7: {}
 
   fast-wrap-ansi@0.2.2:
     dependencies:
@@ -4525,7 +4545,7 @@ snapshots:
 
   lru-cache@10.4.3: {}
 
-  lucide-react@0.469.0(react@19.2.8):
+  lucide-react@1.39.0(react@19.2.8):
     dependencies:
       react: 19.2.8
 
@@ -4713,8 +4733,6 @@ snapshots:
       '@types/react': 19.2.18
 
   react@19.2.8: {}
-
-  reflect-metadata@0.2.2: {}
 
   require-from-string@2.0.2: {}
 
@@ -5070,6 +5088,15 @@ snapshots:
 
   webmcp-types@0.1.5: {}
 
+  webmcpable@0.3.0(effect@4.0.0-rc.112)(react@19.2.8)(svelte@5.56.10(@typescript-eslint/types@8.68.0))(vue@3.5.41(typescript@5.9.3)):
+    dependencies:
+      webmcp-types: 0.1.5
+    optionalDependencies:
+      effect: 4.0.0-rc.112
+      react: 19.2.8
+      svelte: 5.56.10(@typescript-eslint/types@8.68.0)
+      vue: 3.5.41(typescript@5.9.3)
+
   whatwg-mimetype@3.0.0: {}
 
   which@2.0.2:
@@ -5143,3 +5170,5 @@ snapshots:
   zimmerframe@1.1.4: {}
 
   zod@4.4.3: {}
+
+  zod@4.5.4: {}
