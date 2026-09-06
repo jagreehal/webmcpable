@@ -34,6 +34,12 @@ await registry.mount()
 aborts. All three no-op when the browser has no `document.modelContext`, so this
 is safe to ship to every browser.
 
+`confirm` on a tool asks before that one runs, whatever the registry says — put
+it on `delete_account` rather than on every mutation. It wins over
+`readOnlyHint`. `onCall` on the registry reports every resolved call as
+`{ name, input, result, ms }`, where `result` is the string the agent got,
+refusals included, for logging an agent's traffic in production.
+
 `input` takes Zod 4, ArkType, or raw JSON Schema (passed through unvalidated).
 Standard Schema alone cannot produce the JSON Schema registration needs — convert
 Valibot with `@valibot/to-json-schema` and pass the result.

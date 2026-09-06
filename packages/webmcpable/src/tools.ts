@@ -10,6 +10,11 @@ type Infer<S> = S extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<S> : R
 export interface ToolDef<S extends InputSchema | undefined = InputSchema | undefined> {
   /** Only the two annotations the W3C draft actually defines. */
   annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }
+  /**
+   * Ask before *this* tool runs, whatever the registry says. Wins over
+   * `readOnlyHint`, so a read that exports the customer list can still ask.
+   */
+  confirm?: Confirm
   description: string
   execute: (input: Infer<S>, options: { signal: AbortSignal }) => unknown
   /** Origins in the current document tree that may discover and call this tool. */
@@ -43,12 +48,37 @@ export interface ConfirmCall {
   title?: string
 }
 
+/** One resolved call, as the agent experienced it. */
+export interface CallEvent {
+  /** The arguments the agent sent, before validation. */
+  input: unknown
+  /** Milliseconds from the arguments arriving to the result leaving. */
+  ms: number
+  name: string
+  /**
+   * Exactly the string the agent received. A refusal, a validation failure and
+   * a thrown handler all reach the agent as text, so they all arrive here —
+   * `result.startsWith('Error: ')` is the classification on offer.
+   */
+  result: string
+}
+
+/** The gate a call passes through before it runs. `true` uses `window.confirm`. */
+export type Confirm = boolean | ((call: ConfirmCall) => boolean | Promise<boolean>)
+
 export interface RegistryOptions {
   /**
    * Ask before a mutating tool runs. `true` uses `window.confirm`.
-   * Tools with `readOnlyHint: true` skip this.
+   * Tools with `readOnlyHint: true` skip this, and a tool's own `confirm`
+   * overrides both.
    */
-  confirm?: boolean | ((call: ConfirmCall) => boolean | Promise<boolean>) | undefined
+  confirm?: Confirm | undefined
+  /**
+   * Called once per resolved call, for logging what an agent did. Runs after
+   * the result settles, and a throw here is swallowed: a logging sink cannot
+   * fail the agent's call.
+   */
+  onCall?: ((event: CallEvent) => void) | undefined
   /** Never send `title` to the browser, so a consent dialogue cannot promote a friendlier label. */
   titles?: 'off' | undefined
 }
@@ -90,7 +120,7 @@ export function formatConfirmPrompt(call: ConfirmCall): string {
 }
 
 export async function invokeConfirm(
-  confirm: RegistryOptions['confirm'],
+  confirm: Confirm | undefined,
   call: ConfirmCall,
 ): Promise<boolean> {
   // `false` is "do not ask", not "ask with the default dialogue" — a caller
@@ -224,7 +254,7 @@ export function toolExecutor(
   fallbackSignal: AbortSignal = neverAborts(),
 ): (input: unknown, callOptions?: { signal: AbortSignal }) => Promise<string> {
   const title = effectiveTitle(def, options.titles)
-  return async (raw, callOptions) => {
+  const resolve = async (raw: unknown, callOptions?: { signal: AbortSignal }) => {
     const call = callOptions ?? { signal: fallbackSignal }
     const parsed = await validate(def.input, raw)
     // Chrome discards thrown messages, so a validation failure has to be
@@ -243,8 +273,11 @@ export function toolExecutor(
         // on the next revalidate, which every adapter already drives.
         return why
       }
-      if (def.annotations?.readOnlyHint !== true && options.confirm) {
-        const ok = await invokeConfirm(options.confirm, {
+      // The tool's own setting wins outright, including over `readOnlyHint`.
+      const gate =
+        def.confirm ?? (def.annotations?.readOnlyHint === true ? false : options.confirm)
+      if (gate) {
+        const ok = await invokeConfirm(gate, {
           description: def.description,
           descriptorChanged: descriptorChanged(),
           input: parsed.value,
@@ -255,6 +288,19 @@ export function toolExecutor(
       }
       return def.execute(validated(parsed.value), call)
     })
+  }
+
+  if (!options.onCall) {return resolve}
+  const { onCall } = options
+  return async (raw, callOptions) => {
+    const started = Date.now()
+    const result = await resolve(raw, callOptions)
+    try {
+      onCall({ input: raw, ms: Date.now() - started, name, result })
+    } catch {
+      // The call has already resolved; a broken sink does not change that.
+    }
+    return result
   }
 }
 
