@@ -543,6 +543,23 @@ versions of those problems loud in development instead of silent in production.
 The three rules the browser dialogue still needs are in
 [spike/HONEST-HANDSHAKE.md](spike/HONEST-HANDSHAKE.md).
 
+## Log what an agent did
+
+`onCall` fires once per resolved call, on both the WebMCP and on-device paths,
+so an agent's traffic reaches whatever you already send telemetry to.
+
+```ts
+tools(defs, {
+  onCall: ({ input, ms, name, result }) => track('webmcp.call', { input, ms, name, result }),
+})
+```
+
+`input` is what the agent sent and `result` is exactly the string it received,
+so a refusal from `when`, a validation failure and a thrown handler all arrive
+here alongside the successes — the tool an agent keeps being refused is as
+worth seeing as the one it runs. A throw from your sink is swallowed, so
+logging stays outside the transaction.
+
 ## Inspect what an agent sees
 
 ```ts
@@ -585,6 +602,18 @@ the current document tree need access — exact secure origins only, measured in
 Chrome refuses plain `http:` and has no wildcard. Pass `{ titles: 'off' }` to withhold
 `title` from the browser, and `confirm` (a function, or `true` for
 `window.confirm`) to ask before a mutating tool runs.
+
+`confirm` also goes on a single tool, so the question lands on the one action
+that warrants it. A tool's own setting wins outright, including over
+`readOnlyHint`: `add_to_cart` opts out of a registry-wide gate, and a read that
+exports the customer list can still ask.
+
+```ts
+tools({
+  add_to_cart:    { description: '...', execute: add },
+  delete_account: { description: '...', confirm: true, execute: close },
+})
+```
 
 `execute` receives `(input, { signal })`. That signal aborts when the tool is
 unregistered, not when an agent cancels a call — see [the path an agent actually

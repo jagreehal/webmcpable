@@ -272,6 +272,58 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('ok')
   })
 
+  it('asks for a tool that carries its own confirm, with none set on the registry', async () => {
+    // The gate belongs on the tool that deserves the question.
+    const execute = vi.fn(() => 'ran')
+    const registry = tools({
+      add_to_cart: { description: 'Add an item', execute: () => 'added' },
+      delete_account: { confirm: () => false, description: 'Delete the account', execute },
+    })
+    await registry.mount()
+    const byName = Object.fromEntries((await modelContext().getTools()).map((t) => [t.name, t]))
+
+    await expect(modelContext().executeTool(byName.add_to_cart!, '{}')).resolves.toBe('added')
+    await expect(modelContext().executeTool(byName.delete_account!, '{}')).resolves.toBe(
+      'delete_account was not confirmed.',
+    )
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('lets a tool opt out of a registry-wide confirm', async () => {
+    const registry = tools(
+      {
+        add_to_cart: {
+          confirm: false,
+          description: 'Add an item',
+          execute: () => 'added',
+        },
+      },
+      { confirm: () => { throw new Error('should not ask') } },
+    )
+    await registry.mount()
+    const [tool] = await modelContext().getTools()
+
+    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('added')
+  })
+
+  it('asks for a read-only tool that asked to be asked', async () => {
+    // `readOnlyHint` skips the gate by default; the explicit setting wins.
+    const registry = tools({
+      export_customers: {
+        annotations: { readOnlyHint: true },
+        confirm: () => false,
+        description: 'Export every customer',
+        execute: () => 'exported',
+      },
+    })
+    await registry.mount()
+    const [tool] = await modelContext().getTools()
+
+    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+      'export_customers was not confirmed.',
+    )
+  })
+
   it('does not prompt when `when` already refuses the call', async () => {
     let asked = false
     const registry = tools({
