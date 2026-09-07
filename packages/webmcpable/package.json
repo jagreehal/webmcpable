@@ -73,7 +73,7 @@
     "@types/react-dom": "19.2.5",
     "@vitejs/plugin-react": "6.1.0",
     "@vitejs/plugin-vue": "6.0.8",
-    "@vue/test-utils": "2.4.11",
+    "@vue/test-utils": "2.5.0",
     "autotel-web": "^1.13.1",
     "effect": "4.0.0-rc.112",
     "executable-stories-playwright": "8.9.0",
