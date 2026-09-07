@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@changesets/cli": "3.0.1",
-    "@nkzw/oxlint-config": "2.0.0",
+    "@nkzw/oxlint-config": "2.0.1",
     "@playwright/test": "1.62.1",
     "oxlint": "1.80.0",
     "typescript": "^5.9.0",
