@@ -38,8 +38,12 @@ describe('scanSource', () => {
     },
   )
 
-  it('accepts the two annotations the draft defines', () => {
-    expect(codes('annotations: { readOnlyHint: true, untrustedContentHint: false }')).toEqual([])
+  it('accepts the annotations the draft defines', () => {
+    expect(
+      codes(
+        'annotations: { consequentialHint: true, debugging: true, readOnlyHint: true, untrustedContentHint: false }',
+      ),
+    ).toEqual([])
   })
 
   it('flags executeTool called with an object literal', () => {

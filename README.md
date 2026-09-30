@@ -195,19 +195,15 @@ without the library reports `status: "Error"`, and an unreadable message.
 
 ### Your handler's second argument
 
-`execute` is typed `(input, { signal })`, and Chrome calls a registered
-`execute` with **one argument**. `webmcpable` supplies the second itself, so the
-documented signature works; called directly, `registerTool` would hand your
-handler `undefined` and a destructure would throw.
+`execute` is typed `(input, { signal })`. Chrome 154 passes both arguments.
+Chrome 152 and 153 pass the input alone, so `webmcpable` supplies the second
+and the documented signature works in both.
 
-That `signal` is the tool's *registration*. It aborts when the tool is
-unregistered — `unmount()`, or a `revalidate()` where `when` stopped holding —
-so a long-running handler can drop work the user can no longer reach.
-
-It is not a per-call cancellation. A client can cancel an invocation, and
-Chrome tells the client it was `Canceled` while telling the page nothing: the
-handler keeps running, its promise never settles, its signal never fires. Do
-not leave a handler waiting on something that may never arrive.
+That `signal` aborts when you unregister the tool with `unmount()`, or with a
+`revalidate()` where `when` stopped holding, so a long-running handler can drop
+work the user can no longer reach. From Chrome 154 it also aborts when a client
+cancels the invocation. On 152 and 153 a cancel reaches the client only, so give
+long-running handlers their own timeout.
 
 ### Tools in an iframe
 
@@ -387,8 +383,9 @@ expect(mc.calls).toEqual([
 ])
 ```
 
-The harness reproduces Chrome's JSON-string arguments, result serialization,
-error handling, registration validation, and lexicographical tool ordering.
+The harness reproduces Chrome 154's JSON-string arguments, `(input, { signal })`
+calls, annotation normalization, result serialization, error handling,
+registration validation, and lexicographical tool ordering.
 
 ### End-to-end, in Playwright
 
@@ -463,8 +460,8 @@ to update.
 A third lane drives the same build the way an agent does, over CDP rather than
 from inside the page, because those are not the same code path —
 [`e2e/cdp.conformance.ts`](./packages/webmcpable/e2e/cdp.conformance.ts). It is
-what measured that Chrome calls `execute` with one argument, which is why
-`webmcpable` supplies the second.
+what measured how each Chrome version calls `execute` and when it aborts the
+handler's signal.
 
 A fourth lane, [`e2e/bundled-chromium.fixture.ts`](./packages/webmcpable/e2e/bundled-chromium.fixture.ts),
 runs `webmcpable/testing/playwright` in Playwright's own Chromium — the browser
@@ -592,7 +589,9 @@ result is delivered.
 
 Set `annotations: { untrustedContentHint: true }` on a tool that returns user
 content or anything fetched from elsewhere, and `readOnlyHint: true` on one that
-changes nothing — the second also skips `confirm`.
+changes nothing — the second also skips `confirm`. The draft also defines
+`consequentialHint`, for a tool that books, pays, or leaves the page, and
+`debugging`.
 
 `tools()` returns a **registry**. `mount` registers, `revalidate` re-evaluates
 every `when`, `unmount` aborts. A **tool** is a name, a description, an optional

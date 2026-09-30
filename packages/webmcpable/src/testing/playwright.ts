@@ -13,7 +13,7 @@ import type { RecordedCall } from './index'
  * instead, so a suite that never sees a flagged Chrome can still call the tools
  * an agent would call, and assert that the UI moved with them.
  *
- * The fake is the one measured against Chrome 152 in `e2e/*.conformance.ts`,
+ * The fake is the one measured against Chrome 154 in `e2e/*.conformance.ts`,
  * so its quirks are the browser's quirks: a JSON-string `inputSchema`, a
  * name-sorted tool list, a canned message when a handler throws.
  */
@@ -50,8 +50,8 @@ const browserScript = (): string => {
 export type { RecordedCall } from './index'
 
 export interface PageTool {
-  /** Chrome keeps only these two, and returns both once any are sent. */
-  annotations?: { readOnlyHint: boolean; untrustedContentHint: boolean }
+  /** Chrome 154 returns these three, and returns all three once any are sent. */
+  annotations?: { consequentialHint: boolean; readOnlyHint: boolean; untrustedContentHint: boolean }
   description: string
   /**
    * Parsed, unlike `getTools()` in the page.
@@ -125,11 +125,12 @@ const pageModelContext = (page: Page): PageModelContext => ({
           inputSchema = undefined
         }
         return {
-          // Both hints are always present once any are sent, so narrow the
+          // All three hints are present once any are sent, so narrow the
           // draft's all-optional shape to what a caller can actually rely on.
           ...(tool.annotations
             ? {
                 annotations: {
+                  consequentialHint: tool.annotations.consequentialHint === true,
                   readOnlyHint: tool.annotations.readOnlyHint === true,
                   untrustedContentHint: tool.annotations.untrustedContentHint === true,
                 },

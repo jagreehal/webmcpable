@@ -2,26 +2,26 @@
 
 | Key | Value |
 | --- | --- |
-| Date | 2026-09-02T08:18:43.350Z |
-| Version | 0.4.0 |
-| Git SHA | 1924db0 |
+| Date | 2026-09-30T07:46:59.011Z |
+| Version | 0.6.0 |
+| Git SHA | fe5bf02 |
 
 ## cdp.conformance.ts
 
-### ✅ a cancelled invocation is invisible to the page
+### ✅ a cancelled invocation aborts the handler’s signal
 
 - **Given** a tool that never resolves and watches the signal it was handed
 - **When** a client starts it and then cancels the invocation
 - **Then** the client is told the invocation was cancelled
-- **And** but the page was never told: the handler is still running, its signal unaborted
+- **And** and the handler’s signal aborts, so it can stop the work
 
-### ✅ Chrome itself passes a registered execute exactly one argument
+### ✅ Chrome itself passes a registered execute two arguments
 
 - **Given** a tool registered with the raw browser API, counting its arguments
 - **When** a client invokes it
-- **Then** the handler saw one argument, so a documented (input, options) signature would break
+- **Then** the handler saw two arguments: the input and an options object, as the draft specifies
 
-### ✅ the browser calls execute with one argument, and webmcpable supplies the second
+### ✅ a webmcpable handler receives an AbortSignal as its second argument
 
 - **Given** a tool registered through webmcpable that records what it was called with
 - **When** an out-of-process client invokes it over CDP
@@ -74,18 +74,18 @@
 - **When** that state changes and the registry revalidates
 - **Then** the browser hands the agent the new description
 
-### ✅ titles: "off" keeps a friendlier label out of the browser descriptor
-
-- **Given** a tool registered with a title that does not match its name
-- **When** the registry is mounted with titles off
-- **Then** the browser stores an empty title, so it cannot promote the label
-
 ### ✅ a raw JSON Schema still rejects a call missing a required property
 
 - **Given** a tool typed with plain JSON Schema rather than a Standard Schema
 - **When** the agent omits a required property
 - **Then** the agent is told which property is missing
 - **And** the handler never saw the call
+
+### ✅ titles: "off" keeps a friendlier label out of the browser descriptor
+
+- **Given** a tool registered with a title that does not match its name
+- **When** the registry is mounted with titles off
+- **Then** the browser stores an empty title, so it cannot promote the label
 
 ### ✅ confirm refuses a mutating call the user did not approve
 
@@ -128,6 +128,12 @@
 - **Then** the major version is at least 152
 - **And** document.modelContext is present
 
+### ✅ the navigator aliases are gone
+
+- **Given** Chrome 152, where the draft moved to document.modelContext
+- **Then** navigator.modelContext no longer aliases it
+- **And** the undocumented navigator.modelContextTesting is also gone
+
 ### ✅ a handler result reaches the agent as a string
 
 - **Given** tools registered through webmcpable, each returning a different shape
@@ -145,21 +151,29 @@
 - **Then** a JSON string works
 - **And** the object form the draft specifies is rejected
 
-### ✅ the navigator aliases are gone
-
-- **Given** Chrome 152, where the draft moved to document.modelContext
-- **Then** navigator.modelContext no longer aliases it
-- **And** the undocumented navigator.modelContextTesting is also gone
-
 ### ✅ a RegisteredTool is shaped the way webmcpable assumes
 
-- **Given** a tool registered with every annotation server-side MCP defines
+- **Given** a tool registered with debugging and every annotation server-side MCP defines
 - **Then** inputSchema comes back as a JSON string, not the object the draft types
-- **And** only the two annotations the draft defines survive; the rest vanish silently
+- **And** Chrome returns its three hints with defaults, and drops debugging and server-side MCP names
 - **And** it carries a Window, so JSON.stringify throws
 - **And** title defaults to an empty string
 - **And** outputSchema is dropped without an error, the way invented annotations are
 - **And** the key set matches the pinned WebIDL
+
+### ✅ execute receives a signal that a caller’s abort leaves alone
+
+- **Given** a raw tool that never resolves and records its arguments
+- **When** a caller starts it, then aborts its own signal
+- **Then** execute received the input and an options object carrying an AbortSignal
+- **And** executeTool rejects with the caller’s reason
+- **And** and the handler’s signal stays unaborted: only a CDP cancel reaches it
+
+### ✅ getTools returns lexicographical order, not registration order
+
+- **Given** three tools registered out of alphabetical order
+- **When** the agent lists them
+- **Then** they come back sorted by name
 
 ### ✅ registration rejects the same things the fake rejects
 
@@ -171,20 +185,6 @@
 - **And** an unserialisable schema is a TypeError
 - **And** an untrustworthy exposedTo origin is a SecurityError
 
-### ✅ getTools returns lexicographical order, not registration order
-
-- **Given** three tools registered out of alphabetical order
-- **When** the agent lists them
-- **Then** they come back sorted by name
-
-### ✅ a navigating tool keeps a synchronous result and loses an awaited one
-
-- **Given** two tools that navigate away, one returning at once and one awaiting first
-- **When** the agent calls the one that returns in the same turn
-- **Then** the result was delivered before the unload
-- **And** the same call awaits anything after navigating
-- **And** nothing was recorded: the unload took the result with it
-
 ### ✅ exposedTo takes secure origins only, and has no wildcard
 
 - **Given** the same tool offered to four different origin lists
@@ -193,3 +193,11 @@
 - **And** loopback is the whole 127.0.0.0/8 block, ::1, and any .localhost
 - **And** a plain http origin is refused
 - **And** there is no wildcard — "*" is refused the same way
+
+### ✅ a navigating tool keeps a synchronous result and loses an awaited one
+
+- **Given** two tools that navigate away, one returning at once and one awaiting first
+- **When** the agent calls the one that returns in the same turn
+- **Then** the result was delivered before the unload
+- **And** the same call awaits anything after navigating
+- **And** nothing was recorded: the unload took the result with it
