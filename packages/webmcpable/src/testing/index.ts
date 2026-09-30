@@ -32,8 +32,12 @@ interface RegisterOptions {
 
 const VALID_TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/
 
-/** Chrome keeps only these two, and always returns both once any are sent. */
+/**
+ * Chrome 154 returns these three, and always returns all three once any are
+ * sent. It drops `debugging`.
+ */
 const normaliseAnnotations = (annotations: Record<string, unknown>) => ({
+  consequentialHint: annotations['consequentialHint'] === true,
   readOnlyHint: annotations['readOnlyHint'] === true,
   untrustedContentHint: annotations['untrustedContentHint'] === true,
 })
@@ -55,7 +59,11 @@ export function installTestModelContext(): TestModelContext {
   const modelContext = {
     addEventListener: target.addEventListener.bind(target),
     dispatchEvent: target.dispatchEvent.bind(target),
-    async executeTool(tool: { name: string }, inputArguments: string) {
+    async executeTool(
+      tool: { name: string },
+      inputArguments: string,
+      options?: { signal?: AbortSignal },
+    ) {
       const entry = registry.get(tool.name)
       if (!entry) {throw new DOMException('Tool not found', 'NotFoundError')}
 
@@ -71,14 +79,25 @@ export function installTestModelContext(): TestModelContext {
         throw new DOMException('Failed to parse input arguments', 'UnknownError')
       }
 
+      if (options?.signal?.aborted) {throw options.signal.reason}
+
       let value: unknown
       try {
-        // One argument. Measured in Chrome 152 (e2e/cdp.conformance.ts): the
-        // browser calls a registered `execute` with the input and nothing
-        // else. Handing the handler a second argument here would hide the very
-        // gap webmcpable exists to close.
-        value = await entry.execute(input)
-      } catch {
+        // Chrome 154 passes `(input, { signal })`. Aborting the caller's signal
+        // rejects `executeTool` but leaves the handler's signal untouched; only
+        // a CDP cancel aborts it, and the fake has no CDP.
+        const running = Promise.resolve(entry.execute(input, { signal: new AbortController().signal }))
+        const { signal } = options ?? {}
+        value = await (signal
+          ? Promise.race([
+              running,
+              new Promise((_, reject) =>
+                signal.addEventListener('abort', () => reject(signal.reason), { once: true }),
+              ),
+            ])
+          : running)
+      } catch (error) {
+        if (options?.signal?.aborted && error === options.signal.reason) {throw error}
         // Chrome discards the original message. Reproduce that, so nobody
         // builds an error strategy that only works in tests.
         throw new DOMException(
@@ -100,7 +119,7 @@ export function installTestModelContext(): TestModelContext {
       //  - `window` makes it circular, so JSON.stringify throws
       //  - `inputSchema` comes back as a JSON *string*, not an object
       //  - `title` defaults to an empty string
-      //  - unknown annotations are stripped, the known two normalised
+      //  - unknown annotations and `debugging` are stripped, the other three normalised
       // wpt: getTools.https.html — tools come back in lexicographical order,
       // not the order they were registered in.
       return [...registry.values()]

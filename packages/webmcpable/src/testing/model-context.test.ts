@@ -14,7 +14,7 @@ describe('installTestModelContext', () => {
     mc = installTestModelContext()
   })
 
-  const tool = (name: string, execute: (i: unknown) => unknown) => ({
+  const tool = (name: string, execute: (i: unknown, o: { signal: AbortSignal }) => unknown) => ({
     description: `test ${name}`,
     execute,
     inputSchema: { properties: {}, type: 'object' as const },
@@ -143,14 +143,43 @@ describe('installTestModelContext', () => {
     }
   })
 
-  it('strips unknown annotations and normalises the known two, like Chrome', async () => {
+  it('strips unknown annotations and debugging, and normalises the known three, like Chrome', async () => {
     await modelContext().registerTool({
       ...tool('a', () => 'ok'),
-      // deliberately invalid: the point is that Chrome drops it
-      annotations: { destructiveHint: true, readOnlyHint: true } as WebMCP.ToolAnnotations,
+      // Chrome drops destructiveHint and debugging
+      annotations: { debugging: true, destructiveHint: true, readOnlyHint: true } as WebMCP.ToolAnnotations,
     })
     const [t] = await modelContext().getTools()
-    expect(t!.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: false })
+    expect(t!.annotations).toEqual({
+      consequentialHint: false,
+      readOnlyHint: true,
+      untrustedContentHint: false,
+    })
+  })
+
+  it('calls execute with (input, { signal }), like Chrome 154', async () => {
+    let args: Array<unknown> = []
+    await modelContext().registerTool(tool('a', (...a: Array<unknown>) => ((args = a), 'ok')))
+    const [t] = await modelContext().getTools()
+    await modelContext().executeTool(t!, '{"q":1}')
+    expect(args[0]).toEqual({ q: 1 })
+    expect((args[1] as { signal: AbortSignal }).signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('rejects with the caller’s reason when its signal aborts, leaving the handler’s signal alone', async () => {
+    let handlerSignal: AbortSignal | undefined
+    await modelContext().registerTool(
+      tool('a', (_input: unknown, o: { signal: AbortSignal }) => {
+        handlerSignal = o.signal
+        return new Promise(() => {})
+      }),
+    )
+    const [t] = await modelContext().getTools()
+    const caller = new AbortController()
+    const pending = modelContext().executeTool(t!, '{}', { signal: caller.signal })
+    caller.abort()
+    await expect(pending).rejects.toBe(caller.signal.reason)
+    expect(handlerSignal?.aborted).toBe(false)
   })
 
   it('returns no annotations when none were sent', async () => {

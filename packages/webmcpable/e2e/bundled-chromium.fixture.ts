@@ -38,7 +38,11 @@ test('the application mounts, name-sorted, with the schema already parsed', asyn
     required: ['sku'],
     type: 'object',
   })
-  expect(listed[1]!.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: false })
+  expect(listed[1]!.annotations).toEqual({
+    consequentialHint: false,
+    readOnlyHint: true,
+    untrustedContentHint: false,
+  })
 })
 
 test('a tool call moves what the user sees', async ({ modelContext, page }) => {

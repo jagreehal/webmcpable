@@ -13,8 +13,13 @@ export interface Finding {
   severity: 'error' | 'warning'
 }
 
-/** The two annotations the draft defines. Everything else is invented. */
-const KNOWN_ANNOTATIONS = new Set(['readOnlyHint', 'untrustedContentHint'])
+/** The four annotations the draft defines. */
+const KNOWN_ANNOTATIONS = new Set([
+  'consequentialHint',
+  'debugging',
+  'readOnlyHint',
+  'untrustedContentHint',
+])
 
 /** Spec: 1-128 chars, ASCII alphanumeric, '_', '-' or '.'. */
 const VALID_NAME = /^[A-Za-z0-9_.-]{1,128}$/
@@ -186,7 +191,7 @@ export function analyzeTool(tool: InspectedTool): Array<Finding> {
     if (!KNOWN_ANNOTATIONS.has(key)) {
       findings.push({
         code: 'unknown-annotation',
-        message: `\`${key}\` is not in the WebMCP draft and is silently ignored. Only readOnlyHint and untrustedContentHint exist.`,
+        message: `\`${key}\` is not in the WebMCP draft and is silently ignored. Only consequentialHint, debugging, readOnlyHint, and untrustedContentHint exist.`,
         severity: 'error',
       })
     }

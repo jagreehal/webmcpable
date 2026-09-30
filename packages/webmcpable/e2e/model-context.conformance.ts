@@ -113,14 +113,56 @@ test('executeTool takes a JSON string and rejects an object', async ({ page }, t
   expect(result.object).toBe('UnknownError: Failed to parse input arguments')
 })
 
+test('execute receives a signal that a caller’s abort leaves alone', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('a raw tool that never resolves and records its arguments')
+  story.when('a caller starts it, then aborts its own signal')
+  const out = await page.evaluate(async () => {
+    const seen: { argc?: number; signal?: AbortSignal } = {}
+    await document.modelContext.registerTool({
+      description: 'Hangs',
+      execute: (...args: Array<unknown>) => {
+        seen.argc = args.length
+        seen.signal = (args[1] as { signal: AbortSignal }).signal
+        return new Promise(() => {})
+      },
+      inputSchema: { properties: {}, type: 'object' },
+      name: 'hang',
+    } as never)
+    const [tool] = await document.modelContext.getTools()
+    const caller = new AbortController()
+    const pending = document.modelContext.executeTool(tool, '{}', { signal: caller.signal })
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    caller.abort()
+    const rejectedWithReason = await pending.then(() => false, (error) => error === caller.signal.reason)
+    return {
+      argc: seen.argc,
+      handlerAborted: seen.signal?.aborted,
+      isSignal: typeof seen.signal?.addEventListener === 'function',
+      rejectedWithReason,
+    }
+  })
+
+  story.then('execute received the input and an options object carrying an AbortSignal')
+  expect(out.argc).toBe(2)
+  expect(out.isSignal).toBe(true)
+
+  story.then('executeTool rejects with the caller’s reason')
+  expect(out.rejectedWithReason).toBe(true)
+
+  story.then('and the handler’s signal stays unaborted: only a CDP cancel reaches it')
+  expect(out.handlerAborted).toBe(false)
+})
+
 test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, testInfo) => {
   story.init({ page }, testInfo)
 
-  story.given('a tool registered with every annotation server-side MCP defines')
+  story.given('a tool registered with debugging and every annotation server-side MCP defines')
   const tool = await page.evaluate(async () => {
     await document.modelContext.registerTool({
       annotations: {
-        confirmationHint: true, destructiveHint: true, idempotentHint: true,
+        confirmationHint: true, debugging: true, destructiveHint: true, idempotentHint: true,
         openWorldHint: true, readOnlyHint: true, safetyLevel: 'high',
       },
       description: 'A probe tool with every annotation',
@@ -146,8 +188,10 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
   story.then('inputSchema comes back as a JSON string, not the object the draft types')
   expect(tool.schemaType).toBe('string')
 
-  story.then('only the two annotations the draft defines survive; the rest vanish silently')
-  expect(tool.annotations).toEqual({ readOnlyHint: true, untrustedContentHint: false })
+  story.then('Chrome returns its three hints with defaults, and drops debugging and server-side MCP names')
+  expect(tool.annotations).toEqual({
+    consequentialHint: false, readOnlyHint: true, untrustedContentHint: false,
+  })
 
   story.then('it carries a Window, so JSON.stringify throws')
   expect(tool.circular).toBe(true)

@@ -104,13 +104,14 @@ describe('webmcpable/testing/playwright', () => {
       ])
     })
 
-    it('carries title, origin, and both annotation hints', async () => {
+    it('carries title, origin, and all three annotation hints', async () => {
       await mountCart()
       const byName = Object.fromEntries((await context.getTools()).map((t) => [t.name, t]))
 
       expect(byName['add_to_cart']).toMatchObject({ origin: location.origin, title: 'Add to cart' })
-      // Chrome returns both hints once any are sent, so neither is undefined.
+      // Chrome returns all three hints once any are sent, so none is undefined.
       expect(byName['cart_total']!.annotations).toEqual({
+        consequentialHint: false,
         readOnlyHint: true,
         untrustedContentHint: false,
       })

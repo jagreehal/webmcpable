@@ -62,9 +62,17 @@ describe('analyzeTool — will an agent be able to use this?', () => {
     expect(out[0]!.message).toContain('destructiveHint')
   })
 
-  it('accepts the two annotations that do exist', () => {
+  it('accepts the annotations that do exist', () => {
     expect(
-      analyzeTool({ ...base, annotations: { readOnlyHint: true, untrustedContentHint: false } }),
+      analyzeTool({
+        ...base,
+        annotations: {
+          consequentialHint: true,
+          debugging: true,
+          readOnlyHint: true,
+          untrustedContentHint: false,
+        },
+      }),
     ).toEqual([])
   })
 

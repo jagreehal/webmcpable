@@ -3,7 +3,7 @@ import * as z from 'zod'
 import { readInputSchema } from './schema'
 import { installTestModelContext } from './testing/index'
 import { modelContext } from './model-context'
-import { tools } from './tools'
+import { toolExecutor, tools } from './tools'
 
 const names = async () => (await modelContext().getTools()).map((t) => t.name).sort()
 
@@ -219,26 +219,20 @@ describe('tools()', () => {
 describe('the options argument the platform does not pass', () => {
   beforeEach(() => installTestModelContext())
 
-  // Measured in Chrome 152 (e2e/cdp.conformance.ts): the browser invokes a
-  // registered `execute` with the input and nothing else. A handler written to
-  // the documented `(input, { signal })` signature therefore destructures
-  // `undefined` unless webmcpable supplies the second argument itself.
-  it('reaches the handler even when the browser calls execute with one argument', async () => {
+  // Chrome 152 and 153 call a registered `execute` with the input alone.
+  it('supplies the signal when the browser calls execute with one argument', async () => {
     let seen: { signal: AbortSignal } | undefined
-    const r = tools({
-      a: {
-        description: 'a',
-        execute: (_input, options) => {
-          seen = options
-          return 'ok'
-        },
-      },
-    })
-    await r.mount()
+    const registration = new AbortController()
+    const run = toolExecutor(
+      'a',
+      { description: 'a', execute: (_input, options) => ((seen = options), 'ok') },
+      {},
+      undefined,
+      registration.signal,
+    )
 
-    const [tool] = await modelContext().getTools()
-    expect(await modelContext().executeTool(tool!, '{}')).toBe('ok')
-    expect(seen?.signal).toBeInstanceOf(AbortSignal)
+    expect(await run({})).toBe('ok')
+    expect(seen?.signal).toBe(registration.signal)
   })
 
   it('aborts that signal when the tool is unregistered', async () => {
@@ -253,5 +247,22 @@ describe('the options argument the platform does not pass', () => {
     expect(seen?.signal.aborted).toBe(false)
     r.unmount()
     expect(seen?.signal.aborted).toBe(true)
+  })
+
+  // Chrome 154 passes its own per-call signal, which aborts on cancel only.
+  it('aborts on either the per-call signal or the registration signal', async () => {
+    const seen: Array<AbortSignal> = []
+    const def = { description: 'a', execute: (_i: unknown, o: { signal: AbortSignal }) => (seen.push(o.signal), 'ok') }
+    const registration = new AbortController()
+    const call = new AbortController()
+    const run = toolExecutor('a', def, {}, undefined, registration.signal)
+
+    await run({}, { signal: call.signal })
+    call.abort()
+    expect(seen[0]!.aborted).toBe(true)
+
+    await run({}, { signal: new AbortController().signal })
+    registration.abort()
+    expect(seen[1]!.aborted).toBe(true)
   })
 })

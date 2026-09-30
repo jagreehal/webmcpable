@@ -60,8 +60,10 @@ Measured in Chrome 151/152. This is why the library exists; do not hand-roll
 `webmcpable` normalizes all of these: return a string, a JSON-compatible value,
 or `undefined`, and throw normally — the agent reads `Error: out of stock`.
 
-Only two annotations exist: `readOnlyHint` and `untrustedContentHint`. Set
-`untrustedContentHint` on any tool returning user content or fetched data.
+Only four annotations exist: `readOnlyHint`, `untrustedContentHint`,
+`consequentialHint`, and `debugging`. Set `untrustedContentHint` on any tool
+returning user content or fetched data, and `consequentialHint` on tools that
+book, pay, or otherwise leave the page.
 
 ## What an agent sees, which is not what the page sees
 
@@ -80,16 +82,14 @@ The third row is deliberate: Chrome erases a thrown message in the page, so
 webmcpable returns it as text. A client watching `status` alone will not see the
 failure. Say what went wrong in the returned text.
 
-**`execute`'s second argument.** Chrome calls a registered `execute` with one
-argument. webmcpable supplies `{ signal }` itself so the documented signature
-works — with raw `registerTool` your handler gets `undefined` and a destructure
-throws.
+**`execute`'s second argument.** Chrome 154 calls `execute` with
+`(input, { signal })`. Chrome 152 and 153 pass the input alone, so webmcpable
+supplies `{ signal }` there and the documented signature works in both.
 
-**That signal is registration, not cancellation.** It aborts on `unmount()` or a
-`revalidate()` where `when` stopped holding. When a client cancels an
-invocation, Chrome tells the client `Canceled` and tells the page nothing: the
-handler runs on, the promise never settles. Never leave a handler awaiting
-something that may never arrive.
+**When the signal aborts.** It aborts on `unmount()` or on a `revalidate()` where
+`when` stopped holding. From Chrome 154 it also aborts when a client cancels the
+invocation. On 152 and 153 a cancel reaches the client only, so give
+long-running handlers their own timeout.
 
 **Iframes.** A child frame needs `allow="tools"` to register at all, and a
 same-origin child's tools still never reach a client attached to the top-level
@@ -180,8 +180,8 @@ expect(mc.calls).toEqual([
 ])
 ```
 
-It reproduces Chrome's JSON-string arguments, one-argument `execute` calls,
-serialization, error handling and lexicographical ordering. Back it with a
+It reproduces Chrome 154's JSON-string arguments, `(input, { signal })` calls,
+annotation normalization, serialization, error handling and lexicographical ordering. Back it with a
 conformance lane against real Chrome (`pnpm --filter webmcpable test:conformance`
 in this repo), including one case driven over CDP the way an agent drives it —
 in-page and out-of-process are not the same code path.

@@ -7,9 +7,17 @@ export type InputSchema = StandardSchemaV1 | Record<string, unknown>
 
 type Infer<S> = S extends StandardSchemaV1 ? StandardSchemaV1.InferOutput<S> : Record<string, unknown>
 
+/** The four annotations the W3C draft defines. */
+export type ToolAnnotations = {
+  consequentialHint?: boolean
+  debugging?: boolean
+  readOnlyHint?: boolean
+  untrustedContentHint?: boolean
+}
+
 export interface ToolDef<S extends InputSchema | undefined = InputSchema | undefined> {
-  /** Only the two annotations the W3C draft actually defines. */
-  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }
+  /** The annotations the W3C draft defines. */
+  annotations?: ToolAnnotations
   /**
    * Ask before *this* tool runs, whatever the registry says. Wins over
    * `readOnlyHint`, so a read that exports the customer list can still ask.
@@ -245,17 +253,20 @@ export function toolExecutor(
   options: RegistryOptions = {},
   descriptorChanged: () => boolean = () => false,
   /**
-   * What `execute` receives as its second argument when the caller supplies
-   * none. Chrome does: it invokes a registered `execute` with the input and
-   * nothing else, so without this a handler written to the documented
-   * `(input, { signal })` signature destructures `undefined`. Measured in
-   * e2e/cdp.conformance.ts.
+   * The tool's registration lifetime. Chrome 154 passes a per-call signal that
+   * aborts on cancel; this one aborts on unregister, and `execute` receives
+   * both merged. Chrome 152 and 153 pass no second argument, so `execute`
+   * receives this alone. Measured in e2e/cdp.conformance.ts.
    */
   fallbackSignal: AbortSignal = neverAborts(),
 ): (input: unknown, callOptions?: { signal: AbortSignal }) => Promise<string> {
   const title = effectiveTitle(def, options.titles)
   const resolve = async (raw: unknown, callOptions?: { signal: AbortSignal }) => {
-    const call = callOptions ?? { signal: fallbackSignal }
+    const call = {
+      signal: callOptions?.signal
+        ? AbortSignal.any([callOptions.signal, fallbackSignal])
+        : fallbackSignal,
+    }
     const parsed = await validate(def.input, raw)
     // Chrome discards thrown messages, so a validation failure has to be
     // *returned* as text or the agent learns nothing.
@@ -333,10 +344,7 @@ export function tools(defs: Record<string, ToolDef>, options: RegistryOptions = 
             def,
             options,
             () => firstSeen.get(name) !== descriptorKey(name, def, options.titles),
-            // Chrome passes the handler no per-call signal, so the one it gets
-            // is this tool's registration: it aborts when the tool is
-            // unregistered or the registry unmounts. A cancelled *invocation*
-            // is invisible to the page — also measured in the CDP lane.
+            // Aborts when the tool is unregistered or the registry unmounts.
             controller.signal,
           ),
         } as WebMCP.ModelContextTool,

@@ -5,6 +5,7 @@
  *   but is missing from the official types. Upstream PR pending.
  * - Chrome requires input as a JSON *string*, not the object the draft
  *   specifies. Typed here as it actually behaves. See spike/SPIKE-FINDINGS.md.
+ * - `consequentialHint` and `debugging` joined the draft after 0.1.5.
  * - `navigator.modelContextTesting` was undocumented and present in Chrome 151,
  *   and withdrawn in 152. Optional, so code must cope with its absence.
  */
@@ -15,6 +16,11 @@ declare namespace WebMCP {
       inputArguments: string,
       options?: { signal?: AbortSignal },
     ): Promise<string>
+  }
+
+  interface ToolAnnotations {
+    consequentialHint?: boolean
+    debugging?: boolean
   }
 
   interface ModelContextTesting {

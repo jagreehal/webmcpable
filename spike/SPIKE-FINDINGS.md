@@ -81,14 +81,16 @@ is the worst shape a bug can take. Read it through `readInputSchema()` in
 
 ## 4. Annotations outside the draft vanish
 
-The draft defines two: `readOnlyHint` and `untrustedContentHint`.
+The draft defines four: `readOnlyHint`, `untrustedContentHint`,
+`consequentialHint`, and `debugging`.
 
 Register a tool carrying `destructiveHint`, `idempotentHint`, `openWorldHint`,
 `confirmationHint`, or `safetyLevel` and Chrome accepts the registration, drops
 the annotation, and reports nothing. Those names come from server-side MCP and
-have no counterpart here.
+have no counterpart here. Chrome 152 returns `readOnlyHint` and
+`untrustedContentHint` from `getTools()`.
 
-`ToolDef.annotations` in `src/tools.ts` admits only the two the draft defines.
+`ToolDef.annotations` in `src/tools.ts` admits the four the draft defines.
 The `unknown-annotation` rule in `src/cli/rules.ts` flags the rest in source,
 since the browser will not.
 

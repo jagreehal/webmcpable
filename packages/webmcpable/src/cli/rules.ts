@@ -32,7 +32,7 @@ interface Rule {
   severity: Finding['severity']
 }
 
-/** Only these two exist in the draft; the rest are imported from server-side MCP. */
+/** Server-side MCP names that are not in the WebMCP draft. */
 const INVENTED_ANNOTATIONS = [
   'destructiveHint',
   'idempotentHint',
@@ -59,7 +59,7 @@ const RULES: Array<Rule> = [
   },
   {
     code: 'unknown-annotation',
-    fix: 'The draft defines only `readOnlyHint` and `untrustedContentHint`.',
+    fix: 'The draft defines `consequentialHint`, `debugging`, `readOnlyHint`, and `untrustedContentHint`.',
     message: (m) =>
       `\`${m[1]}\` is not defined by the WebMCP draft and is silently ignored by the browser.`,
     pattern: new RegExp(`\\b(${INVENTED_ANNOTATIONS.join('|')})\\s*:`, 'g'),

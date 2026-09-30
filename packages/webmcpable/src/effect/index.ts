@@ -1,6 +1,6 @@
 import { Cause, Data, Effect, Stream, SubscriptionRef } from 'effect'
 import { readInputSchema } from '../schema'
-import { tools, type InputSchema, type RegistryOptions, type ToolDef } from '../tools'
+import { tools, type InputSchema, type RegistryOptions, type ToolAnnotations, type ToolDef } from '../tools'
 
 /**
  * Effect-native WebMCP tools.
@@ -22,7 +22,7 @@ type Infer<S> = S extends { '~standard': unknown }
   : Record<string, unknown>
 
 export interface EffectToolDef<S extends InputSchema | undefined = InputSchema | undefined> {
-  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean }
+  annotations?: ToolAnnotations
   description: string
   execute: (
     input: Infer<S>,

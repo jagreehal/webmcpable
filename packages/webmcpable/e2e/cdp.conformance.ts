@@ -11,9 +11,8 @@ import { story } from 'executable-stories-playwright'
  * `agent-browser webmcp list|invoke|result|cancel` — and that crossing has its
  * own rules for arguments, results, errors and cancellation.
  *
- * They are not the same rules. The in-page transcription said `execute`
- * receives `(input, options)`; the browser passes one argument, and this lane
- * is what found it.
+ * Chrome 154 passes `execute` the input and a `{ signal }` that aborts on
+ * cancel. This lane measures both.
  */
 
 const HARNESS = '/e2e/fixtures/harness.html'
@@ -83,7 +82,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page).toHaveTitle('ready')
 })
 
-test('the browser calls execute with one argument, and webmcpable supplies the second', async ({
+test('a webmcpable handler receives an AbortSignal as its second argument', async ({
   page,
 }, testInfo) => {
   story.init({ page }, testInfo)
@@ -119,7 +118,7 @@ test('the browser calls execute with one argument, and webmcpable supplies the s
   expect(await page.evaluate(() => window.__seen.signalIsAbortSignal)).toBe(true)
 })
 
-test('Chrome itself passes a registered execute exactly one argument', async ({ page }, testInfo) => {
+test('Chrome itself passes a registered execute two arguments', async ({ page }, testInfo) => {
   story.init({ page }, testInfo)
 
   story.given('a tool registered with the raw browser API, counting its arguments')
@@ -140,8 +139,8 @@ test('Chrome itself passes a registered execute exactly one argument', async ({ 
   const agent = await client(page)
   await agent.invoke('raw_argc')
 
-  story.then('the handler saw one argument, so a documented (input, options) signature would break')
-  expect(await page.evaluate(() => window.__argc)).toBe(1)
+  story.then('the handler saw two arguments: the input and an options object, as the draft specifies')
+  expect(await page.evaluate(() => window.__argc)).toBe(2)
 })
 
 test('a JSON result reaches the client structured, not as a string', async ({ page }, testInfo) => {
@@ -219,7 +218,7 @@ test('a thrown error reaches the client as a completed call carrying the message
   expect(wrapped.status).not.toBe(raw.status)
 })
 
-test('a cancelled invocation is invisible to the page', async ({ page }, testInfo) => {
+test('a cancelled invocation aborts the handler’s signal', async ({ page }, testInfo) => {
   story.init({ page }, testInfo)
 
   story.given('a tool that never resolves and watches the signal it was handed')
@@ -250,8 +249,8 @@ test('a cancelled invocation is invisible to the page', async ({ page }, testInf
   story.then('the client is told the invocation was cancelled')
   expect(settled.status).toBe('Canceled')
 
-  story.then('but the page was never told: the handler is still running, its signal unaborted')
-  expect(await page.evaluate(() => window.__aborted)).toBe(false)
+  story.then('and the handler’s signal aborts, so it can stop the work')
+  await expect.poll(() => page.evaluate(() => window.__aborted)).toBe(true)
 })
 
 test('the signal a handler is given aborts when the tool is unregistered', async ({
