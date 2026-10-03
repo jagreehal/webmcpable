@@ -66,7 +66,7 @@
   "devDependencies": {
     "@playwright/test": "1.62.1",
     "@standard-schema/spec": "^1.1.0",
-    "@sveltejs/vite-plugin-svelte": "7.3.0",
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/svelte": "5.4.2",
     "@types/react": "19.2.18",
