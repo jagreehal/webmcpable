@@ -2,9 +2,9 @@
 
 | Key | Value |
 | --- | --- |
-| Date | 2026-09-30T07:46:59.011Z |
+| Date | 2026-10-15T17:59:02.515Z |
 | Version | 0.6.0 |
-| Git SHA | fe5bf02 |
+| Git SHA | 2639e1d |
 
 ## cdp.conformance.ts
 
@@ -15,18 +15,18 @@
 - **Then** the client is told the invocation was cancelled
 - **And** and the handler’s signal aborts, so it can stop the work
 
-### ✅ Chrome itself passes a registered execute two arguments
-
-- **Given** a tool registered with the raw browser API, counting its arguments
-- **When** a client invokes it
-- **Then** the handler saw two arguments: the input and an options object, as the draft specifies
-
 ### ✅ a webmcpable handler receives an AbortSignal as its second argument
 
 - **Given** a tool registered through webmcpable that records what it was called with
 - **When** an out-of-process client invokes it over CDP
 - **Then** the call succeeds
 - **And** the handler received an options object carrying an AbortSignal
+
+### ✅ Chrome itself passes a registered execute two arguments
+
+- **Given** a tool registered with the raw browser API, counting its arguments
+- **When** a client invokes it
+- **Then** the handler saw two arguments: the input and an options object, as the draft specifies
 
 ### ✅ a thrown error reaches the client as a completed call carrying the message
 
@@ -74,6 +74,12 @@
 - **When** that state changes and the registry revalidates
 - **Then** the browser hands the agent the new description
 
+### ✅ titles: "off" keeps a friendlier label out of the browser descriptor
+
+- **Given** a tool registered with a title that does not match its name
+- **When** the registry is mounted with titles off
+- **Then** the browser stores an empty title, so it cannot promote the label
+
 ### ✅ a raw JSON Schema still rejects a call missing a required property
 
 - **Given** a tool typed with plain JSON Schema rather than a Standard Schema
@@ -81,11 +87,10 @@
 - **Then** the agent is told which property is missing
 - **And** the handler never saw the call
 
-### ✅ titles: "off" keeps a friendlier label out of the browser descriptor
+### ✅ a two-face tool is flagged as a label mismatch, and a poisoned description is flagged too
 
-- **Given** a tool registered with a title that does not match its name
-- **When** the registry is mounted with titles off
-- **Then** the browser stores an empty title, so it cannot promote the label
+- **Given** a tool whose title, name, and description do not agree
+- **Then** the debug findings name the two-face label, the hidden instruction, and the swap
 
 ### ✅ confirm refuses a mutating call the user did not approve
 
@@ -93,11 +98,6 @@
 - **When** the agent invokes it
 - **Then** the handler never ran
 - **And** the agent is told the call was not confirmed
-
-### ✅ a two-face tool is flagged as a label mismatch, and a poisoned description is flagged too
-
-- **Given** a tool whose title, name, and description do not agree
-- **Then** the debug findings name the two-face label, the hidden instruction, and the swap
 
 ## declarative.conformance.ts
 
@@ -122,17 +122,25 @@
 
 ## model-context.conformance.ts
 
-### ✅ Chrome is new enough to carry the WebMCP implementation
-
-- **Given** a Chrome launched with the WebMCP flags
-- **Then** the major version is at least 152
-- **And** document.modelContext is present
-
 ### ✅ the navigator aliases are gone
 
 - **Given** Chrome 152, where the draft moved to document.modelContext
 - **Then** navigator.modelContext no longer aliases it
 - **And** the undocumented navigator.modelContextTesting is also gone
+
+### ✅ Chrome is new enough to carry the WebMCP implementation
+
+- **Given** a Chrome launched with the WebMCP flags
+- **Then** the major version is at least 155
+- **And** document.modelContext is present
+
+### ✅ executeTool takes an object and rejects a JSON string
+
+- **Given** a registered tool with an input schema
+- **When** the agent calls it each way
+- **Then** the object form the draft specifies works
+- **And** the JSON string Chrome 152-154 required is now a TypeError
+- **And** omitted input arrives as an empty object, and an array passes through
 
 ### ✅ a handler result reaches the agent as a string
 
@@ -144,22 +152,20 @@
 - **And** undefined becomes an empty result, because webmcpable normalises it
 - **And** a thrown message survives, because webmcpable returns it as text
 
-### ✅ executeTool takes a JSON string and rejects an object
+### ✅ registerTool snapshots inputSchema through JSON
 
-- **Given** a registered tool with an input schema
-- **When** the agent calls it both ways
-- **Then** a JSON string works
-- **And** the object form the draft specifies is rejected
+- **Given** schemas with a toJSON, values JSON cannot hold, and one mutated after registering
+- **When** the agent lists them
+- **Then** getTools returns the JSON taken at registration: toJSON applied, Date a string, NaN null, undefined gone, later mutation unseen
 
-### ✅ a RegisteredTool is shaped the way webmcpable assumes
+### ✅ executeTool serialises input through JSON
 
-- **Given** a tool registered with debugging and every annotation server-side MCP defines
-- **Then** inputSchema comes back as a JSON string, not the object the draft types
-- **And** Chrome returns its three hints with defaults, and drops debugging and server-side MCP names
-- **And** it carries a Window, so JSON.stringify throws
-- **And** title defaults to an empty string
-- **And** outputSchema is dropped without an error, the way invented annotations are
-- **And** the key set matches the pinned WebIDL
+- **Given** a raw tool that echoes the input its handler received
+- **When** the agent passes values JSON cannot represent faithfully
+- **Then** a Date arrives as its ISO string
+- **And** NaN and Infinity arrive as null
+- **And** an undefined property is dropped
+- **And** a circular object and a BigInt are TypeErrors
 
 ### ✅ execute receives a signal that a caller’s abort leaves alone
 
@@ -168,6 +174,16 @@
 - **Then** execute received the input and an options object carrying an AbortSignal
 - **And** executeTool rejects with the caller’s reason
 - **And** and the handler’s signal stays unaborted: only a CDP cancel reaches it
+
+### ✅ a RegisteredTool is shaped the way webmcpable assumes
+
+- **Given** a tool registered with debugging and every annotation server-side MCP defines
+- **Then** inputSchema comes back as an object, as the draft types it
+- **And** Chrome returns its hints with defaults, drops server-side MCP names, and keeps debugging from 156
+- **And** it carries a Window, so JSON.stringify throws
+- **And** title defaults to an empty string
+- **And** outputSchema is dropped without an error, the way invented annotations are
+- **And** the key set matches the pinned WebIDL
 
 ### ✅ getTools returns lexicographical order, not registration order
 

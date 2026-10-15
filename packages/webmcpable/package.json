@@ -61,7 +61,7 @@
     "test:fixture": "pnpm build && playwright test -c playwright.fixture.config.ts"
   },
   "dependencies": {
-    "webmcp-types": "0.1.5"
+    "webmcp-types": "0.1.10"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",

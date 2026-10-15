@@ -31,7 +31,7 @@ test('a tool refuses to run once its `when` stops holding', async ({ page }, tes
 
     const [tool] = await document.modelContext.getTools()
     cart = []
-    const result = await document.modelContext.executeTool(tool, '{}')
+    const result = await document.modelContext.executeTool(tool, {})
     return { ran, result }
   })
 
@@ -81,7 +81,7 @@ test('a raw JSON Schema still rejects a call missing a required property', async
       },
     }).mount()
     const [tool] = await document.modelContext.getTools()
-    return { ran, result: await document.modelContext.executeTool(tool, '{}') }
+    return { ran, result: await document.modelContext.executeTool(tool, {}) }
   })
 
   story.then('the agent is told which property is missing')
@@ -127,7 +127,7 @@ test('confirm refuses a mutating call the user did not approve', async ({ page }
       },
     }, { confirm: () => false }).mount()
     const [tool] = await document.modelContext.getTools()
-    return { ran, result: await document.modelContext.executeTool(tool, '{}') }
+    return { ran, result: await document.modelContext.executeTool(tool, {}) }
   })
 
   story.then('the handler never ran')

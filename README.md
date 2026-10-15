@@ -107,16 +107,16 @@ Behavior measured in Chrome 151:
 | `return undefined` | `"undefined"`, the literal nine characters |
 | `throw new Error('out of stock')` | `UnknownError: Tool was executed but the invocation failed` |
 | `annotations: { destructiveHint: true }` | *nothing*. Discarded at registration |
-| `executeTool(tool, { q: 'x' })` | `UnknownError: Failed to parse input arguments` |
+| `executeTool(tool, '{"q":"x"}')` | `TypeError` in Chrome 155. Chrome 152-154 took this string |
 
 `webmcpable` normalizes handler results and errors, validates Standard Schema
 input before your handler sees it, and restricts annotations to the fields
 WebMCP defines. The test harness and CLI reproduce or detect invocation
-mistakes such as passing object arguments to `executeTool()`.
+mistakes such as passing a JSON string to `executeTool()`.
 
-[spike/SPIKE-FINDINGS.md](https://github.com/jagreehal/webmcpable/blob/main/spike/SPIKE-FINDINGS.md)
-records every measurement behind this table, names the file that encodes each
-one, and explains how to re-run them against a newer Chrome.
+[`e2e/CHROME-CONFORMANCE.md`](./packages/webmcpable/e2e/CHROME-CONFORMANCE.md)
+records every measurement behind this table. `pnpm --filter webmcpable test:conformance`
+re-runs them against a newer Chrome.
 
 ### Tool results
 
@@ -172,7 +172,7 @@ fine — nothing unloads. Call `mount()` again on the page you land on.
 Everything above describes the page's side. An agent is not in the page. Chrome
 exposes WebMCP to a client over a CDP `WebMCP` domain — `toolsAdded`,
 `invokeTool`, `cancelInvocation`, `toolResponded` — and the reference client is
-[agent-browser](https://github.com/vercel-labs/agent-browser), whose
+`agent-browser`, whose
 `agent-browser webmcp list | invoke | result | cancel` is what calling your page
 looks like from outside.
 
@@ -195,7 +195,7 @@ without the library reports `status: "Error"`, and an unreadable message.
 
 ### Your handler's second argument
 
-`execute` is typed `(input, { signal })`. Chrome 154 passes both arguments.
+`execute` is typed `(input, { signal })`. Chrome 154 and later pass both arguments.
 Chrome 152 and 153 pass the input alone, so `webmcpable` supplies the second
 and the documented signature works in both.
 
@@ -360,7 +360,7 @@ Prompt API ignores them, except `readOnlyHint`, which still decides whether
 
 Everything else in this README is measured against a real Chrome. This is not:
 tool use is undocumented outside the
-[explainer](https://github.com/webmachinelearning/prompt-api), and the
+Prompt API explainer, and the
 conformance lane cannot run it without a Canary and a model download. Treat the
 shape as the explainer's until that changes.
 
@@ -376,14 +376,14 @@ const mc = installTestModelContext()
 await registry.mount()
 
 const [tool] = await document.modelContext.getTools()
-await document.modelContext.executeTool(tool, '{"address":"12 High St"}')
+await document.modelContext.executeTool(tool, { address: '12 High St' })
 
 expect(mc.calls).toEqual([
   { name: 'checkout', input: { address: '12 High St' }, result: 'Order placed' },
 ])
 ```
 
-The harness reproduces Chrome 154's JSON-string arguments, `(input, { signal })`
+The harness reproduces Chrome 155's object arguments, `(input, { signal })`
 calls, annotation normalization, result serialization, error handling,
 registration validation, and lexicographical tool ordering.
 
@@ -415,11 +415,9 @@ catches it.
 
 `modelContext` offers three things:
 
-- `getTools()`, with `inputSchema` already parsed. The browser hands that back
-  as a JSON string, and reaching for `.properties` on it is the most common way
-  a WebMCP test passes for the wrong reason.
-- `callTool(name, input)`, which serialises the input to the JSON string Chrome
-  demands and looks the tool up the way an agent does.
+- `getTools()`, with `inputSchema` as an object. Chrome 151-154 returned a JSON
+  string, and this parses it.
+- `callTool(name, input)`, which looks the tool up the way an agent does.
 - `calls()`, every invocation so far with its input, for asserting what the
   agent actually did rather than only what the page now shows.
 
@@ -450,7 +448,7 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   pnpm --filter webmcpable test:conformance
 ```
 
-It drives a real Chrome — 152 or newer, launched with the WebMCP flags —
+It drives a real Chrome — 155 or newer, launched with the WebMCP flags —
 against the built bundle, asserting the same things the in-memory harness
 asserts. When it fails, the copy is wrong, not the browser. It regenerates
 [`e2e/CHROME-CONFORMANCE.md`](./packages/webmcpable/e2e/CHROME-CONFORMANCE.md)
@@ -476,9 +474,8 @@ small conformance lane against real Chrome to catch the day the browser moves.
 ### Hand your tools to an eval
 
 Both lanes above answer "does this tool work". Neither answers "will a model
-pick it" — that needs a model, and
-[`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals)
-already does it. Its `local` mode reads your tool list from a JSON file, and
+pick it" — that needs a model, and `webmcp-evals` does it. Its `local` mode
+reads your tool list from a JSON file, and
 `toolSchemas()` writes that file from the registry you already have, so the
 schemas the model is judged on cannot drift from the ones you ship:
 
@@ -537,8 +534,6 @@ What this library does is keep an honest site's tools honest:
 None of that stops prompt injection, and none of it helps against a site that
 means you harm — such a site would not use this library. It makes accidental
 versions of those problems loud in development instead of silent in production.
-The three rules the browser dialogue still needs are in
-[spike/HONEST-HANDSHAKE.md](spike/HONEST-HANDSHAKE.md).
 
 ## Log what an agent did
 
@@ -590,7 +585,7 @@ result is delivered.
 Set `annotations: { untrustedContentHint: true }` on a tool that returns user
 content or anything fetched from elsewhere, and `readOnlyHint: true` on one that
 changes nothing — the second also skips `confirm`. The draft also defines
-`consequentialHint`, for a tool that books, pays, or leaves the page, and
+`consequentialHint`, for a tool that pays, books, deletes, or sends, and
 `debugging`.
 
 `tools()` returns a **registry**. `mount` registers, `revalidate` re-evaluates

@@ -39,7 +39,7 @@ describe('effectTools', () => {
           yield* registry.mount
           const [tool] = yield* Effect.promise(() => modelContext().getTools())
           const result = yield* Effect.promise(() =>
-            modelContext().executeTool(tool!, '{"name":"jag"}'),
+            modelContext().executeTool(tool!, {"name":"jag"}),
           )
           expect(result).toBe('hello jag')
         }),
@@ -60,7 +60,7 @@ describe('effectTools', () => {
           })
           yield* registry.mount
           const [tool] = yield* Effect.promise(() => modelContext().getTools())
-          const result = yield* Effect.promise(() => modelContext().executeTool(tool!, '{}'))
+          const result = yield* Effect.promise(() => modelContext().executeTool(tool!, {}))
           expect(result).toContain('out of stock')
         }),
       ),
@@ -107,7 +107,7 @@ describe('effectTools', () => {
           })
           yield* registry.mount
           const [tool] = yield* Effect.promise(() => modelContext().getTools())
-          const result = yield* Effect.promise(() => modelContext().executeTool(tool!, '{}'))
+          const result = yield* Effect.promise(() => modelContext().executeTool(tool!, {}))
           expect(result).toBe('Exports are not included in this workspace plan.')
         }),
       ),

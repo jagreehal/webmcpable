@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { toToolResult } from './result'
 
-// Every expectation here is measured Chrome behaviour, re-confirmed on 152.
-// See spike/SPIKE-FINDINGS.md — do not change without re-running the
-// conformance lane (`pnpm --filter webmcpable test:conformance`).
+// Every expectation here is measured Chrome behaviour, re-confirmed on 155.
+// Re-run the conformance lane before changing one (`pnpm --filter webmcpable test:conformance`).
 describe('toToolResult', () => {
   it('passes strings through untouched', async () => {
     expect(await toToolResult(() => 'hello')).toBe('hello')

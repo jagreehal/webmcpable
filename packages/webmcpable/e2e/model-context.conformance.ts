@@ -3,7 +3,7 @@ import { story } from 'executable-stories-playwright'
 import { MINIMUM_CHROME } from './chrome'
 
 /**
- * Every claim in SPIKE-FINDINGS.md, re-measured against a real Chrome.
+ * Every claim the in-memory fake makes, re-measured against a real Chrome.
  *
  * The unit suite runs against `installTestModelContext()`, which is a
  * transcription of what a browser once did. Nothing keeps a transcription
@@ -63,7 +63,7 @@ test('a handler result reaches the agent as a string', async ({ page }, testInfo
     const registered = await document.modelContext.getTools()
     const out = {}
     for (const tool of registered) {
-      out[tool.name] = await document.modelContext.executeTool(tool, '{}')
+      out[tool.name] = await document.modelContext.executeTool(tool, {})
     }
     return out
   })
@@ -84,11 +84,11 @@ test('a handler result reaches the agent as a string', async ({ page }, testInfo
   expect(results.thrower).toBe('Error: out of stock')
 })
 
-test('executeTool takes a JSON string and rejects an object', async ({ page }, testInfo) => {
+test('executeTool takes an object and rejects a JSON string', async ({ page }, testInfo) => {
   story.init({ page }, testInfo)
 
   story.given('a registered tool with an input schema')
-  story.when('the agent calls it both ways')
+  story.when('the agent calls it each way')
   const result = await page.evaluate(async () => {
     const { tools } = window.webmcpable
     await tools({
@@ -96,21 +96,109 @@ test('executeTool takes a JSON string and rejects an object', async ({ page }, t
     }).mount()
     const [tool] = await document.modelContext.getTools()
 
-    const out = {}
-    out.jsonString = await document.modelContext.executeTool(tool, JSON.stringify({ q: 'x' }))
-    try {
-      out.object = await document.modelContext.executeTool(tool, { q: 'x' })
-    } catch (error) {
-      out.object = `${error.name}: ${error.message}`
+    const attempt = async (input) => {
+      try {
+        return await document.modelContext.executeTool(tool, input)
+      } catch (error) {
+        return `${error.name}: ${error.message}`
+      }
     }
-    return out
+    return {
+      array: await attempt([1]),
+      jsonString: await attempt(JSON.stringify({ q: 'x' })),
+      object: await attempt({ q: 'x' }),
+      omitted: await attempt(undefined),
+    }
   })
 
-  story.then('a JSON string works')
-  expect(result.jsonString).toBe('{"q":"x"}')
+  story.then('the object form the draft specifies works')
+  expect(result.object).toBe('{"q":"x"}')
 
-  story.then('the object form the draft specifies is rejected')
-  expect(result.object).toBe('UnknownError: Failed to parse input arguments')
+  story.then('the JSON string Chrome 152-154 required is now a TypeError')
+  // 155: "invalid input object: value is not an object". 158 rejects it at the
+  // binding layer instead: "parameter 2 is not of type 'object'".
+  expect(result.jsonString).toMatch(/^TypeError: Failed to execute 'executeTool' on 'ModelContext': /)
+
+  story.then('omitted input arrives as an empty object, and an array passes through')
+  expect(result.omitted).toBe('{}')
+  expect(result.array).toBe('[1]')
+})
+
+test('executeTool serialises input through JSON', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('a raw tool that echoes the input its handler received')
+  story.when('the agent passes values JSON cannot represent faithfully')
+  const result = await page.evaluate(async () => {
+    await document.modelContext.registerTool({
+      description: 'Echo the input',
+      execute: (input) => JSON.stringify(input),
+      inputSchema: { type: 'object' },
+      name: 'echo',
+    } as never)
+    const [tool] = await document.modelContext.getTools()
+    const attempt = async (input) => {
+      try {
+        return await document.modelContext.executeTool(tool, input)
+      } catch (error) {
+        return `${error.name}: ${error.message.split('\n')[0]}`
+      }
+    }
+    const circular: Record<string, unknown> = {}
+    circular['self'] = circular
+    return {
+      bigint: await attempt({ b: 1n }),
+      circular: await attempt(circular),
+      date: await attempt({ d: new Date(0) }),
+      nan: await attempt({ i: Number.POSITIVE_INFINITY, n: Number.NaN }),
+      undef: await attempt({ k: 1, u: undefined }),
+    }
+  })
+
+  story.then('a Date arrives as its ISO string')
+  expect(result.date).toBe('{"d":"1970-01-01T00:00:00.000Z"}')
+
+  story.then('NaN and Infinity arrive as null')
+  expect(result.nan).toBe('{"i":null,"n":null}')
+
+  story.then('an undefined property is dropped')
+  expect(result.undef).toBe('{"k":1}')
+
+  story.then('a circular object and a BigInt are TypeErrors')
+  expect(result.circular).toBe(
+    "TypeError: Failed to execute 'executeTool' on 'ModelContext': Converting circular structure to JSON",
+  )
+  expect(result.bigint).toBe(
+    "TypeError: Failed to execute 'executeTool' on 'ModelContext': Do not know how to serialize a BigInt",
+  )
+})
+
+test('registerTool snapshots inputSchema through JSON', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('schemas with a toJSON, values JSON cannot hold, and one mutated after registering')
+  story.when('the agent lists them')
+  const schemas = await page.evaluate(async () => {
+    const mutable = { properties: { a: { type: 'string' } }, type: 'object' }
+    const register = (name, inputSchema) =>
+      document.modelContext.registerTool({ description: 'x', execute: () => 'ok', inputSchema, name } as never)
+    await register('lossy', { d: new Date(0), n: Number.NaN, type: 'object', u: undefined })
+    await register('mutated', mutable)
+    await register('tojson', { toJSON: () => ({ type: 'object' }) })
+    await document.modelContext.registerTool({ description: 'x', execute: () => 'ok', name: 'none' } as never)
+    mutable.properties.a.type = 'number'
+    return Object.fromEntries(
+      (await document.modelContext.getTools()).map((t) => [t.name, t.inputSchema ?? 'absent']),
+    )
+  })
+
+  story.then('getTools returns the JSON taken at registration: toJSON applied, Date a string, NaN null, undefined gone, later mutation unseen')
+  expect(schemas).toEqual({
+    lossy: { d: '1970-01-01T00:00:00.000Z', n: null, type: 'object' },
+    mutated: { properties: { a: { type: 'string' } }, type: 'object' },
+    none: 'absent',
+    tojson: { type: 'object' },
+  })
 })
 
 test('execute receives a signal that a caller’s abort leaves alone', async ({ page }, testInfo) => {
@@ -132,7 +220,7 @@ test('execute receives a signal that a caller’s abort leaves alone', async ({ 
     } as never)
     const [tool] = await document.modelContext.getTools()
     const caller = new AbortController()
-    const pending = document.modelContext.executeTool(tool, '{}', { signal: caller.signal })
+    const pending = document.modelContext.executeTool(tool, {}, { signal: caller.signal })
     await new Promise((resolve) => setTimeout(resolve, 50))
     caller.abort()
     const rejectedWithReason = await pending.then(() => false, (error) => error === caller.signal.reason)
@@ -169,7 +257,7 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
       execute: () => 'ok',
       inputSchema: { properties: {}, type: 'object' },
       name: 'probe',
-      // Not in the draft, but the Chrome team's own flight-search demo ships it.
+      // Not in the draft.
       outputSchema: { properties: { result: { type: 'string' } }, type: 'object' },
     })
     const [registered] = await document.modelContext.getTools()
@@ -177,6 +265,7 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
     try { JSON.stringify(registered) } catch { circular = true }
     return {
       annotations: registered.annotations,
+      chrome: Number(navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] ?? 0),
       circular,
       keys: Object.keys(registered).sort(),
       outputSchema: registered.outputSchema,
@@ -185,12 +274,13 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
     }
   })
 
-  story.then('inputSchema comes back as a JSON string, not the object the draft types')
-  expect(tool.schemaType).toBe('string')
+  story.then('inputSchema comes back as an object, as the draft types it')
+  expect(tool.schemaType).toBe('object')
 
-  story.then('Chrome returns its three hints with defaults, and drops debugging and server-side MCP names')
+  story.then('Chrome returns its hints with defaults, drops server-side MCP names, and keeps debugging from 156')
   expect(tool.annotations).toEqual({
     consequentialHint: false, readOnlyHint: true, untrustedContentHint: false,
+    ...(tool.chrome >= 156 && { debugging: true }),
   })
 
   story.then('it carries a Window, so JSON.stringify throws')
@@ -294,7 +384,7 @@ test('a navigating tool keeps a synchronous result and loses an awaited one', as
     // Not awaited: this document is about to be replaced. The handler records
     // its own outcome in sessionStorage, which survives a same-origin navigation.
     void document.modelContext
-      .executeTool(tool, '{}')
+      .executeTool(tool, {})
       .then((result) => sessionStorage.setItem('outcome', `resolved:${result}`))
       .catch((error) => sessionStorage.setItem('outcome', `rejected:${error.name}`))
   })
@@ -325,7 +415,7 @@ test('a navigating tool keeps a synchronous result and loses an awaited one', as
   await page.evaluate(async () => {
     const [tool] = await document.modelContext.getTools()
     void document.modelContext
-      .executeTool(tool, '{}')
+      .executeTool(tool, {})
       .then((result) => sessionStorage.setItem('outcome', `resolved:${result}`))
       .catch((error) => sessionStorage.setItem('outcome', `rejected:${error.name}`))
   })

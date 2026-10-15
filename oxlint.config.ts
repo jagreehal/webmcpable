@@ -3,7 +3,7 @@ import { defineConfig } from 'oxlint';
 
 export default defineConfig({
   extends: [nkzw],
-  ignorePatterns: ['**/dist/**', 'spike/**'],
+  ignorePatterns: ['**/dist/**'],
   overrides: [
     {
       files: ['**/*.test.ts', '**/*.test.tsx', '**/demo/**', '**/e2e/**'],

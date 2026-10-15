@@ -4,9 +4,9 @@ import { tools } from '../tools'
 import { installTestModelContext, toolSchemas } from './index'
 import { modelContext } from '../model-context'
 
-// This fake covers the Chrome 151 registration, inspection, and execution
-// behavior that application tests rely on. spike/SPIKE-FINDINGS.md records each
-// measured quirk.
+// This fake covers the Chrome 155 registration, inspection, and execution
+// behavior that application tests rely on. e2e/CHROME-CONFORMANCE.md records
+// each measurement.
 describe('installTestModelContext', () => {
   let mc: ReturnType<typeof installTestModelContext>
 
@@ -87,14 +87,13 @@ describe('installTestModelContext', () => {
     expect((await modelContext().getTools()).length).toBe(0)
   })
 
-  it('requires input arguments as a JSON string, like Chrome', async () => {
+  it('takes input as an object and rejects a JSON string, like Chrome 155', async () => {
     await modelContext().registerTool(tool('a', () => 'ok'))
     const [t] = await modelContext().getTools()
-    // @ts-expect-error deliberately passing the shape Chrome rejects
-    await expect(modelContext().executeTool(t!, { q: 'x' })).rejects.toThrow(
-      /Failed to parse input arguments/,
-    )
-    await expect(modelContext().executeTool(t!, '{}')).resolves.toBe('ok')
+    // @ts-expect-error deliberately passing the shape Chrome 152-154 took
+    await expect(modelContext().executeTool(t!, '{}')).rejects.toThrow(/value is not an object/)
+    await expect(modelContext().executeTool(t!, {})).resolves.toBe('ok')
+    await expect(modelContext().executeTool(t!)).resolves.toBe('ok')
   })
 
   it('stringifies results and never unwraps an MCP envelope', async () => {
@@ -102,7 +101,7 @@ describe('installTestModelContext', () => {
       tool('a', () => ({ content: [{ text: 'hi', type: 'text' }] })),
     )
     const [t] = await modelContext().getTools()
-    await expect(modelContext().executeTool(t!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(t!, {})).resolves.toBe(
       '{"content":[{"text":"hi","type":"text"}]}',
     )
   })
@@ -110,7 +109,7 @@ describe('installTestModelContext', () => {
   it('turns undefined into the literal string "undefined", like Chrome', async () => {
     await modelContext().registerTool(tool('a', () => undefined))
     const [t] = await modelContext().getTools()
-    await expect(modelContext().executeTool(t!, '{}')).resolves.toBe('undefined')
+    await expect(modelContext().executeTool(t!, {})).resolves.toBe('undefined')
   })
 
   it('erases thrown error messages, like Chrome', async () => {
@@ -120,13 +119,13 @@ describe('installTestModelContext', () => {
       }),
     )
     const [t] = await modelContext().getTools()
-    await expect(modelContext().executeTool(t!, '{}')).rejects.toThrow(/invocation failed/)
+    await expect(modelContext().executeTool(t!, {})).rejects.toThrow(/invocation failed/)
   })
 
   it('substitutes "Operation succeeded" for an empty result, like Chrome', async () => {
     await modelContext().registerTool(tool('a', () => ''))
     const [t] = await modelContext().getTools()
-    await expect(modelContext().executeTool(t!, '{}')).resolves.toBe('Operation succeeded')
+    await expect(modelContext().executeTool(t!, {})).resolves.toBe('Operation succeeded')
   })
 
   it('preserves whitespace, zero and false, unlike the empty string', async () => {
@@ -139,7 +138,7 @@ describe('installTestModelContext', () => {
     for (const [name, value, expected] of cases) {
       await modelContext().registerTool(tool(name, () => value))
       const found = (await modelContext().getTools()).find((t) => t.name === name)
-      await expect(modelContext().executeTool(found!, '{}')).resolves.toBe(expected)
+      await expect(modelContext().executeTool(found!, {})).resolves.toBe(expected)
     }
   })
 
@@ -157,11 +156,11 @@ describe('installTestModelContext', () => {
     })
   })
 
-  it('calls execute with (input, { signal }), like Chrome 154', async () => {
+  it('calls execute with (input, { signal }), like Chrome', async () => {
     let args: Array<unknown> = []
     await modelContext().registerTool(tool('a', (...a: Array<unknown>) => ((args = a), 'ok')))
     const [t] = await modelContext().getTools()
-    await modelContext().executeTool(t!, '{"q":1}')
+    await modelContext().executeTool(t!, {"q":1})
     expect(args[0]).toEqual({ q: 1 })
     expect((args[1] as { signal: AbortSignal }).signal).toBeInstanceOf(AbortSignal)
   })
@@ -176,7 +175,7 @@ describe('installTestModelContext', () => {
     )
     const [t] = await modelContext().getTools()
     const caller = new AbortController()
-    const pending = modelContext().executeTool(t!, '{}', { signal: caller.signal })
+    const pending = modelContext().executeTool(t!, {}, { signal: caller.signal })
     caller.abort()
     await expect(pending).rejects.toBe(caller.signal.reason)
     expect(handlerSignal?.aborted).toBe(false)
@@ -188,11 +187,47 @@ describe('installTestModelContext', () => {
     expect(t!.annotations).toBeUndefined()
   })
 
-  it('returns inputSchema as a JSON string, as Chrome does', async () => {
-    await modelContext().registerTool(tool('a', () => 'ok'))
+  it('returns inputSchema as an object copy, as Chrome 155 does', async () => {
+    const registered = tool('a', () => 'ok')
+    await modelContext().registerTool(registered)
     const [t] = await modelContext().getTools()
-    expect(typeof t!.inputSchema).toBe('string')
+    expect(t!.inputSchema).toEqual({ properties: {}, type: 'object' })
+    expect(t!.inputSchema).not.toBe(registered.inputSchema)
     expect(readInputSchema(t!.inputSchema)).toEqual({ properties: {}, type: 'object' })
+  })
+
+  it('snapshots inputSchema as JSON at registration, like Chrome', async () => {
+    const mutable = { properties: { a: { type: 'string' } }, type: 'object' }
+    const register = (name: string, inputSchema: object) =>
+      modelContext().registerTool({ description: 'x', execute: () => 'ok', inputSchema, name })
+    await register('lossy', { d: new Date(0), n: Number.NaN, type: 'object', u: undefined })
+    await register('mutated', mutable)
+    await register('tojson', { toJSON: () => ({ type: 'object' }) })
+    mutable.properties.a.type = 'number'
+
+    const schemas = Object.fromEntries(
+      (await modelContext().getTools()).map((t) => [t.name, t.inputSchema]),
+    )
+    expect(schemas).toStrictEqual({
+      lossy: { d: '1970-01-01T00:00:00.000Z', n: null, type: 'object' },
+      mutated: { properties: { a: { type: 'string' } }, type: 'object' },
+      tojson: { type: 'object' },
+    })
+  })
+
+  it('keeps a tool whose execute lives on its prototype', async () => {
+    class Echo {
+      description = 'Echo'
+      inputSchema = { type: 'object' }
+      name = 'echo'
+      execute() {
+        return 'ok'
+      }
+    }
+    await modelContext().registerTool(new Echo())
+    const [t] = await modelContext().getTools()
+    expect(t!.inputSchema).toEqual({ type: 'object' })
+    await expect(modelContext().executeTool(t!, {})).resolves.toBe('ok')
   })
 
   it('defaults title to an empty string and exposes origin', async () => {
@@ -234,26 +269,47 @@ describe('installTestModelContext', () => {
       }),
     )
     const [t] = await modelContext().getTools()
-    await expect(modelContext().executeTool(t!, '[1, 2, 3]')).resolves.toBe('ok')
+    await expect(modelContext().executeTool(t!, [1, 2, 3])).resolves.toBe('ok')
     expect(received).toEqual([1, 2, 3])
   })
 
   it.each([
-    ['string', '"hello"'],
-    ['number', '123'],
-    ['boolean', 'true'],
-    ['null', 'null'],
-  ])('rejects a JSON %s, which is not an object', async (_label, args) => {
-    // wpt: object-arguments.https.html
+    ['string', 'hello'],
+    ['number', 123],
+    ['boolean', true],
+    ['null', null],
+  ])('rejects a %s, which is not an object', async (_label, args) => {
     await modelContext().registerTool(tool('a', () => 'ok'))
     const [t] = await modelContext().getTools()
-    await expect(modelContext().executeTool(t!, args)).rejects.toThrow()
+    await expect(modelContext().executeTool(t!, args as never)).rejects.toThrow(TypeError)
+  })
+
+  it('serialises input through JSON, like Chrome', async () => {
+    let received: unknown
+    await modelContext().registerTool(
+      tool('a', (input) => {
+        received = input
+        return 'ok'
+      }),
+    )
+    const [t] = await modelContext().getTools()
+    await modelContext().executeTool(t!, { d: new Date(0), i: Infinity, k: 1, n: Number.NaN, u: undefined })
+    expect(received).toStrictEqual({ d: '1970-01-01T00:00:00.000Z', i: null, k: 1, n: null })
+
+    const circular: Record<string, unknown> = {}
+    circular['self'] = circular
+    await expect(modelContext().executeTool(t!, circular)).rejects.toThrow(
+      "Failed to execute 'executeTool' on 'ModelContext': Converting circular structure to JSON",
+    )
+    await expect(modelContext().executeTool(t!, { b: 1n })).rejects.toThrow(
+      "Failed to execute 'executeTool' on 'ModelContext': Do not know how to serialize a BigInt",
+    )
   })
 
   it('records calls so tests can assert on what the agent did', async () => {
     await modelContext().registerTool(tool('a', () => 'ok'))
     const [t] = await modelContext().getTools()
-    await modelContext().executeTool(t!, '{"q":"x"}')
+    await modelContext().executeTool(t!, {"q":"x"})
     expect(mc.calls).toEqual([{ input: { q: 'x' }, name: 'a', result: 'ok' }])
   })
 })

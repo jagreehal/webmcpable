@@ -34,7 +34,7 @@ test('a <form toolname> is a tool like any other', async ({ page }, testInfo) =>
     {
       description: 'Book a table for tonight',
       name: 'book_table',
-      schemaType: 'string',
+      schemaType: 'object',
     },
   ])
 })
@@ -75,7 +75,7 @@ test('a declarative tool without toolautosubmit waits for the human', async ({ p
   const outcome = await page.evaluate(async () => {
     const [tool] = await document.modelContext.getTools()
     return Promise.race([
-      document.modelContext.executeTool(tool, JSON.stringify({ people: '2' })),
+      document.modelContext.executeTool(tool, { people: '2' }),
       new Promise((resolve) => setTimeout(() => resolve('still waiting'), 3000)),
     ])
   })

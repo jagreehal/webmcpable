@@ -1,7 +1,7 @@
 /**
  * Runtime checks on what an agent actually sees.
  *
- * Every rule is grounded in measured Chrome behaviour (spike/SPIKE-FINDINGS.md) or
+ * Every rule is grounded in measured Chrome behaviour (e2e/CHROME-CONFORMANCE.md) or
  * the W3C draft — not style preference.
  */
 
@@ -51,7 +51,7 @@ const AGENT_INSTRUCTIONS: Array<[RegExp, Finding['severity']]> = [
 export interface InspectedTool {
   annotations?: Record<string, unknown>
   description?: string
-  /** Chrome's listTools() hands this back as a JSON string. */
+  /** An object from `getTools()`, or a JSON string from the older `listTools()`. */
   inputSchema?: unknown
   name: string
   /** Display label the browser may promote over `name` in a consent dialogue. */
