@@ -46,14 +46,15 @@ describe('scanSource', () => {
     ).toEqual([])
   })
 
-  it('flags executeTool called with an object literal', () => {
-    const [finding] = scan("mc.executeTool(tool, { q: 'x' })")
-    expect(finding!.code).toBe('execute-tool-object')
-    expect(finding!.fix).toContain('JSON.stringify')
+  it.each([
+    "mc.executeTool(tool, '{}')",
+    'mc.executeTool(tool, JSON.stringify(args))',
+  ])('flags executeTool called with a JSON string: %s', (source) => {
+    expect(scan(source).map((f) => f.code)).toContain('execute-tool-string')
   })
 
   it('flags executeTool called from the page as a chained call', () => {
-    const [finding] = scan('mc.executeTool(tool, JSON.stringify(args))')
+    const [finding] = scan("mc.executeTool(tool, { q: 'x' })")
     expect(finding!.code).toBe('chained-execute')
     expect(finding!.severity).toBe('warning')
   })

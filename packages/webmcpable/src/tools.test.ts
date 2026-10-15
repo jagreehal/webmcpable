@@ -152,7 +152,7 @@ describe('tools()', () => {
     })
     await r.mount()
     const [tool] = await modelContext().getTools()
-    await expect(modelContext().executeTool(tool!, '{"q":"hi"}')).resolves.toBe('HI')
+    await expect(modelContext().executeTool(tool!, {"q":"hi"})).resolves.toBe('HI')
     expect(execute).toHaveBeenCalledWith({ q: 'hi' }, expect.anything())
   })
 
@@ -163,7 +163,7 @@ describe('tools()', () => {
     })
     await r.mount()
     const [tool] = await modelContext().getTools()
-    const result = await modelContext().executeTool(tool!, '{"q":42}')
+    const result = await modelContext().executeTool(tool!, {"q":42})
     expect(result).toMatch(/q/)
     expect(execute).not.toHaveBeenCalled()
   })
@@ -174,7 +174,7 @@ describe('tools()', () => {
     const [tool] = await modelContext().getTools()
     // We map undefined -> '', and Chrome turns '' into a canned success
     // message. Hand-rolled code would send the literal text "undefined".
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('Operation succeeded')
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe('Operation succeeded')
   })
 
   it('forwards title to the browser by default', async () => {
@@ -212,7 +212,7 @@ describe('tools()', () => {
     })
     await r.mount()
     const [tool] = await modelContext().getTools()
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toMatch(/boom/)
+    await expect(modelContext().executeTool(tool!, {})).resolves.toMatch(/boom/)
   })
 })
 
@@ -242,14 +242,14 @@ describe('the options argument the platform does not pass', () => {
     })
     await r.mount()
     const [tool] = await modelContext().getTools()
-    await modelContext().executeTool(tool!, '{}')
+    await modelContext().executeTool(tool!, {})
 
     expect(seen?.signal.aborted).toBe(false)
     r.unmount()
     expect(seen?.signal.aborted).toBe(true)
   })
 
-  // Chrome 154 passes its own per-call signal, which aborts on cancel only.
+  // Chrome 154+ passes its own per-call signal, which aborts on cancel only.
   it('aborts on either the per-call signal or the registration signal', async () => {
     const seen: Array<AbortSignal> = []
     const def = { description: 'a', execute: (_i: unknown, o: { signal: AbortSignal }) => (seen.push(o.signal), 'ok') }

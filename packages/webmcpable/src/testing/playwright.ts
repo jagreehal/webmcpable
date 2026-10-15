@@ -13,8 +13,8 @@ import type { RecordedCall } from './index'
  * instead, so a suite that never sees a flagged Chrome can still call the tools
  * an agent would call, and assert that the UI moved with them.
  *
- * The fake is the one measured against Chrome 154 in `e2e/*.conformance.ts`,
- * so its quirks are the browser's quirks: a JSON-string `inputSchema`, a
+ * The fake is the one measured against Chrome 155 in `e2e/*.conformance.ts`,
+ * so its quirks are the browser's quirks: JSON-serialised input, a
  * name-sorted tool list, a canned message when a handler throws.
  */
 
@@ -50,17 +50,10 @@ const browserScript = (): string => {
 export type { RecordedCall } from './index'
 
 export interface PageTool {
-  /** Chrome 154 returns these three, and returns all three once any are sent. */
+  /** Chrome 155 returns these three, and returns all three once any are sent. */
   annotations?: { consequentialHint: boolean; readOnlyHint: boolean; untrustedContentHint: boolean }
   description: string
-  /**
-   * Parsed, unlike `getTools()` in the page.
-   *
-   * Chrome hands `inputSchema` back as a JSON string, and reaching for
-   * `.properties` on it silently yields undefined — the single most common way
-   * a WebMCP test passes for the wrong reason. Nothing is lost by parsing here:
-   * the raw string cannot cross into the test process as anything but text.
-   */
+  /** Always an object. Chrome 151-154 returned a JSON string; this parses it. */
   inputSchema: Record<string, unknown> | undefined
   name: string
   origin: string
@@ -78,9 +71,8 @@ export interface PageModelContext {
   /**
    * Execute a tool the way an agent does: by name, with an input object.
    *
-   * Chrome requires the input as a JSON *string* and rejects an object, so this
-   * serialises for you. The lookup goes through `getTools()` rather than
-   * straight to the registry, because that is the path an agent takes.
+   * The lookup goes through `getTools()` rather than straight to the registry,
+   * because that is the path an agent takes.
    */
   callTool(name: string, input?: unknown): Promise<string>
   /** The tools the page has registered, name-sorted the way the browser sorts them. */
@@ -92,7 +84,7 @@ const pageModelContext = (page: Page): PageModelContext => ({
 
   callTool: (name, input = {}) =>
     page.evaluate(
-      async ([toolName, inputArguments]: [string, string]) => {
+      async ([toolName, inputArguments]: [string, unknown]) => {
         const context = document.modelContext
         if (!context) {
           throw new Error('document.modelContext is undefined: the fake was never installed.')
@@ -103,9 +95,9 @@ const pageModelContext = (page: Page): PageModelContext => ({
         }
         // The doctor's chained-execute rule is about a handler starting a second
         // tool. This is the agent's side of the first one.
-        return context.executeTool(tool, inputArguments) // webmcpable-ignore
+        return context.executeTool(tool, inputArguments as object) // webmcpable-ignore
       },
-      [name, JSON.stringify(input)] as [string, string],
+      [name, input] as [string, unknown],
     ),
 
   getTools: () =>

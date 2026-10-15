@@ -31,14 +31,14 @@ describe('what the agent is allowed to run', () => {
     // underneath it before the call lands.
     allowed = false
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'checkout is not available right now.',
     )
     expect(execute).not.toHaveBeenCalled()
   })
 
   it('refuses with the reason `when` returned, and stays visible', async () => {
-    // webmachinelearning/webmcp#262: unregistering throws away what the page
+    // WebMCP draft issue 262: unregistering throws away what the page
     // knows. A reason string keeps the tool listed and explains the refusal.
     const execute = vi.fn(() => 'ran')
     const registry = tools({
@@ -51,7 +51,7 @@ describe('what the agent is allowed to run', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'Exports are not included in this workspace plan.',
     )
     expect(execute).not.toHaveBeenCalled()
@@ -67,7 +67,7 @@ describe('what the agent is allowed to run', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'checkout is not available right now.',
     )
   })
@@ -83,7 +83,7 @@ describe('what the agent is allowed to run', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
     allowed = false
-    await modelContext().executeTool(tool!, '{}')
+    await modelContext().executeTool(tool!, {})
 
     expect(await modelContext().getTools()).toHaveLength(1)
 
@@ -98,7 +98,7 @@ describe('what the agent is allowed to run', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('ran')
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe('ran')
   })
 
   it('reports a `when` that throws at execution time as text rather than throwing', async () => {
@@ -121,7 +121,7 @@ describe('what the agent is allowed to run', () => {
 
     // Chrome discards thrown messages, so the refusal has to come back as text,
     // and the gate fails closed: the execute never runs.
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'Error: predicate exploded',
     )
   })
@@ -178,7 +178,7 @@ describe('what the agent is allowed to run', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'Invalid input — missing required: address',
     )
     expect(execute).not.toHaveBeenCalled()
@@ -195,7 +195,7 @@ describe('what the agent is allowed to run', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{"address":"12 High St"}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {"address":"12 High St"})).resolves.toBe(
       'to 12 High St',
     )
   })
@@ -214,7 +214,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'checkout was not confirmed.',
     )
     expect(execute).not.toHaveBeenCalled()
@@ -227,7 +227,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('ran')
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe('ran')
   })
 
   it('passes the resolved name and arguments, not the title, as the headline', async () => {
@@ -251,7 +251,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     })
     await registry.mount()
     const [tool] = await modelContext().getTools()
-    await modelContext().executeTool(tool!, '{"address":"PO Box 1"}')
+    await modelContext().executeTool(tool!, {"address":"PO Box 1"})
 
     expect(seen).toEqual([
       { input: { address: 'PO Box 1' }, name: 'update_shipping_address', title: 'Add 2 coffees' },
@@ -269,7 +269,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('ok')
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe('ok')
   })
 
   it('asks for a tool that carries its own confirm, with none set on the registry', async () => {
@@ -282,8 +282,8 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
     const byName = Object.fromEntries((await modelContext().getTools()).map((t) => [t.name, t]))
 
-    await expect(modelContext().executeTool(byName.add_to_cart!, '{}')).resolves.toBe('added')
-    await expect(modelContext().executeTool(byName.delete_account!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(byName.add_to_cart!, {})).resolves.toBe('added')
+    await expect(modelContext().executeTool(byName.delete_account!, {})).resolves.toBe(
       'delete_account was not confirmed.',
     )
     expect(execute).not.toHaveBeenCalled()
@@ -303,7 +303,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('added')
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe('added')
   })
 
   it('asks for a read-only tool that asked to be asked', async () => {
@@ -319,7 +319,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'export_customers was not confirmed.',
     )
   })
@@ -335,7 +335,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     }, { confirm: () => { asked = true; return true } })
     await registry.mount()
     const [tool] = await modelContext().getTools()
-    await modelContext().executeTool(tool!, '{}')
+    await modelContext().executeTool(tool!, {})
 
     expect(asked).toBe(false)
   })
@@ -351,10 +351,10 @@ describe('the page-side confirm, bound to the call that runs', () => {
     })
     await registry.mount()
     const [tool] = await modelContext().getTools()
-    await modelContext().executeTool(tool!, '{}')
+    await modelContext().executeTool(tool!, {})
 
     defs.checkout.description = 'Ship the order'
-    await modelContext().executeTool(tool!, '{}')
+    await modelContext().executeTool(tool!, {})
 
     expect(seen).toEqual([false, true])
   })
@@ -379,7 +379,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
 
     const [tool] = await modelContext().getTools()
-    expect(await modelContext().executeTool(tool!, '{}')).toBe('ordered')
+    expect(await modelContext().executeTool(tool!, {})).toBe('ordered')
     expect(spy).not.toHaveBeenCalled()
   })
 
@@ -407,7 +407,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
 
     const [tool] = await modelContext().getTools()
-    expect(await modelContext().executeTool(tool!, '{"amount":"42"}')).toBe('paid 42')
+    expect(await modelContext().executeTool(tool!, {"amount":"42"})).toBe('paid 42')
     expect(spy).toHaveBeenCalledOnce()
   })
 
@@ -455,7 +455,7 @@ describe('the page-side confirm, bound to the call that runs', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe(
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe(
       'checkout was not confirmed.',
     )
     expect(spy).toHaveBeenCalledWith(expect.stringContaining('checkout'))

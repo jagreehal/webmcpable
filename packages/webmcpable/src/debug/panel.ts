@@ -115,8 +115,7 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
       const tools = await document.modelContext!.getTools()
       const target = tools.find((t) => t.name === row.tool.name)
       if (!target) {throw new Error('tool is no longer registered')}
-      // Chrome requires a JSON string here, never an object.
-      const result = await document.modelContext!.executeTool(target, raw || '{}') // webmcpable-ignore
+      const result = await document.modelContext!.executeTool(target, JSON.parse(raw || '{}')) // webmcpable-ignore
       row.lastResult = result
       row.resultFindings = analyzeResult(result)
     } catch (error) {

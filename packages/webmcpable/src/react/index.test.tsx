@@ -111,7 +111,7 @@ describe('useTools', () => {
     }
     render(<App />)
     const [tool] = await modelContext().getTools()
-    await expect(modelContext().executeTool(tool!, '{"name":"jag"}')).resolves.toBe('hello jag')
+    await expect(modelContext().executeTool(tool!, {"name":"jag"})).resolves.toBe('hello jag')
   })
   it('still knows the descriptor moved when metadata changes', async () => {
     const asked: Array<{ descriptorChanged: boolean }> = []
@@ -131,7 +131,7 @@ describe('useTools', () => {
     await act(async () => {})
 
     const [tool] = await modelContext().getTools()
-    expect(await modelContext().executeTool(tool!, '{}')).toBe('ordered')
+    expect(await modelContext().executeTool(tool!, {})).toBe('ordered')
     expect(asked[0]!.descriptorChanged).toBe(true)
   })
   it('keeps consent history when an unrelated tool appears', async () => {
@@ -158,7 +158,7 @@ describe('useTools', () => {
 
     const tools = await modelContext().getTools()
     const checkout = tools.find((t) => t.name === 'checkout')!
-    expect(await modelContext().executeTool(checkout, '{}')).toBe('ordered')
+    expect(await modelContext().executeTool(checkout, {})).toBe('ordered')
     expect(asked[0]!.descriptorChanged).toBe(true)
   })
 

@@ -55,7 +55,7 @@ Measured in Chrome 151/152. This is why the library exists; do not hand-roll
 | `return undefined` | `"undefined"`, literally |
 | `throw new Error('out of stock')` | `UnknownError: Tool was executed but the invocation failed` |
 | `annotations: { destructiveHint: true }` | nothing — discarded at registration |
-| `executeTool(tool, { q: 'x' })` | `UnknownError: Failed to parse input arguments` (args are a JSON **string**) |
+| `executeTool(tool, '{"q":"x"}')` | `TypeError` in Chrome 155, which takes an object. Chrome 152-154 took the string |
 
 `webmcpable` normalizes all of these: return a string, a JSON-compatible value,
 or `undefined`, and throw normally — the agent reads `Error: out of stock`.
@@ -63,7 +63,9 @@ or `undefined`, and throw normally — the agent reads `Error: out of stock`.
 Only four annotations exist: `readOnlyHint`, `untrustedContentHint`,
 `consequentialHint`, and `debugging`. Set `untrustedContentHint` on any tool
 returning user content or fetched data, and `consequentialHint` on tools that
-book, pay, or otherwise leave the page.
+pay, book, delete, or send. Leave it off navigation tools. Omit a hint rather
+than set it to `false`, and keep `readOnlyHint` and `consequentialHint` off the
+same tool.
 
 ## What an agent sees, which is not what the page sees
 
@@ -82,7 +84,7 @@ The third row is deliberate: Chrome erases a thrown message in the page, so
 webmcpable returns it as text. A client watching `status` alone will not see the
 failure. Say what went wrong in the returned text.
 
-**`execute`'s second argument.** Chrome 154 calls `execute` with
+**`execute`'s second argument.** Chrome 154 and later call `execute` with
 `(input, { signal })`. Chrome 152 and 153 pass the input alone, so webmcpable
 supplies `{ signal }` there and the documented signature works in both.
 
@@ -173,14 +175,14 @@ const mc = installTestModelContext()
 await registry.mount()
 
 const [tool] = await document.modelContext.getTools()
-await document.modelContext.executeTool(tool, '{"address":"12 High St"}')
+await document.modelContext.executeTool(tool, { address: '12 High St' })
 
 expect(mc.calls).toEqual([
   { name: 'checkout', input: { address: '12 High St' }, result: 'Order placed' },
 ])
 ```
 
-It reproduces Chrome 154's JSON-string arguments, `(input, { signal })` calls,
+It reproduces Chrome 155's object arguments, `(input, { signal })` calls,
 annotation normalization, serialization, error handling and lexicographical ordering. Back it with a
 conformance lane against real Chrome (`pnpm --filter webmcpable test:conformance`
 in this repo), including one case driven over CDP the way an agent drives it —
@@ -205,12 +207,12 @@ test('the agent and the user share one cart', async ({ modelContext, page }) => 
 
 Always assert the UI too. A tool that reports success over a cart that never
 changed has told the agent a lie, and nothing else catches it. `getTools()`
-here returns `inputSchema` already parsed, `callTool` serialises the input, and
+here returns `inputSchema` as an object on any Chrome, and
 `calls()` is what the agent did. `installTestModelContext(page)` is the same
 thing for a suite with its own fixtures — call it before the first `goto`.
 
 `toolSchemas()` writes the registry's schemas to a file for
-[`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals);
+`webmcp-evals`;
 `JSON.stringify(await getTools())` cannot stand in — a `RegisteredTool` carries
 its owner `Window` and throws on a circular structure.
 
@@ -222,7 +224,7 @@ model pick it". For a workflow that matters, keep an artifact next to it:
 ```text
 artifacts/<domain>/<task>/
   manifest.json     goal, required page state, expected calls, expected UI change, excluded secrets
-  eval.json         cases for webmcp-evals
+  evals.json        cases for webmcp-evals
   eval-report.md    results, including one contaminated-description case
 ```
 
@@ -241,7 +243,9 @@ npx webmcpable spec-check    # drift alarm against the live draft WebIDL
 `mountDebugPanel()` from `webmcpable/debug` shows each tool next to the result
 string an agent actually receives, flags MCP envelopes, thin descriptions,
 descriptions phrased as orders, and a document that is a child frame, and
-journals resolved calls.
+journals resolved calls. Chrome DevTools has an Application > WebMCP pane, and
+Lighthouse runs "Agentic browsing" audits. To try the tools by hand, enable
+`chrome://flags/#enable-webmcp-testing` in Chrome 155 or later.
 
 ## Security boundary
 

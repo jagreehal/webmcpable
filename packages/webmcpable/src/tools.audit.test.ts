@@ -29,7 +29,7 @@ describe('what the agent actually did', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await modelContext().executeTool(tool!, '{"sku":"espresso"}')
+    await modelContext().executeTool(tool!, {"sku":"espresso"})
 
     expect(onCall).toHaveBeenCalledTimes(1)
     expect(onCall.mock.calls[0]![0]).toMatchObject({
@@ -56,7 +56,7 @@ describe('what the agent actually did', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await modelContext().executeTool(tool!, '{}')
+    await modelContext().executeTool(tool!, {})
 
     expect(onCall.mock.calls[0]![0]).toMatchObject({
       name: 'export_report',
@@ -78,7 +78,7 @@ describe('what the agent actually did', () => {
     await registry.mount()
     const [tool] = await modelContext().getTools()
 
-    await expect(modelContext().executeTool(tool!, '{}')).resolves.toBe('Order placed')
+    await expect(modelContext().executeTool(tool!, {})).resolves.toBe('Order placed')
   })
 
   it('audits the on-device path too', async () => {

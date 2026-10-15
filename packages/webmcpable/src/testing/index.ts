@@ -6,7 +6,7 @@ import { readInputSchema } from '../schema'
  * An in-memory `document.modelContext` that reproduces Chrome's real
  * behaviour — including its divergences from the W3C draft.
  *
- * Every quirk here is measured, not inferred. See spike/SPIKE-FINDINGS.md.
+ * Every quirk here is measured in e2e/CHROME-CONFORMANCE.md.
  * This is what lets tools run in tests and CI with no browser flag.
  */
 
@@ -33,8 +33,8 @@ interface RegisterOptions {
 const VALID_TOOL_NAME = /^[A-Za-z0-9_.-]{1,128}$/
 
 /**
- * Chrome 154 returns these three, and always returns all three once any are
- * sent. It drops `debugging`.
+ * Chrome returns these three, and always returns all three once any are
+ * sent. Chrome 155 drops `debugging`, and 156 returns it.
  */
 const normaliseAnnotations = (annotations: Record<string, unknown>) => ({
   consequentialHint: annotations['consequentialHint'] === true,
@@ -51,6 +51,9 @@ export interface TestModelContext {
 
 export function installTestModelContext(): TestModelContext {
   const registry = new Map<string, Entry>()
+  // Chrome snapshots the schema as JSON at registration, so `toJSON` and later
+  // mutation both resolve then. Kept beside the tool so its prototype survives.
+  const schemas = new WeakMap<Entry, string>()
   const calls: Array<RecordedCall> = []
   const previous = Object.getOwnPropertyDescriptor(document, 'modelContext')
 
@@ -61,29 +64,39 @@ export function installTestModelContext(): TestModelContext {
     dispatchEvent: target.dispatchEvent.bind(target),
     async executeTool(
       tool: { name: string },
-      inputArguments: string,
+      inputArguments: object = {},
       options?: { signal?: AbortSignal },
     ) {
       const entry = registry.get(tool.name)
       if (!entry) {throw new DOMException('Tool not found', 'NotFoundError')}
 
-      // Chrome requires a JSON *string* here and rejects objects.
-      // wpt: object-arguments.https.html — the argument is a JSON *string*, and
-      // must parse to an object or an array. JSON primitives are rejected.
-      let input: unknown
-      try {
-        if (typeof inputArguments !== 'string') {throw new Error('not a string')}
-        input = JSON.parse(inputArguments)
-        if (typeof input !== 'object' || input === null) {throw new Error('not an object')}
-      } catch {
-        throw new DOMException('Failed to parse input arguments', 'UnknownError')
+      // Chrome 155 takes an object (or array) and rejects anything else,
+      // including the JSON string 152-154 required. Omitted input is `{}`.
+      if (typeof inputArguments !== 'object' || inputArguments === null) {
+        throw new TypeError(
+          "Failed to execute 'executeTool' on 'ModelContext': invalid input object: value is not an object",
+        )
       }
+      // Chrome serialises the input through JSON, so a Date arrives as a string,
+      // NaN as null, undefined properties vanish, and a cycle or BigInt throws.
+      let json: string | undefined
+      try {
+        json = JSON.stringify(inputArguments)
+        if (json === undefined) {throw new TypeError('value is not an object')}
+      } catch (error) {
+        throw new TypeError(
+          `Failed to execute 'executeTool' on 'ModelContext': ${(error as Error).message}`,
+          { cause: error },
+        )
+      }
+      // oxlint-disable-next-line unicorn/prefer-structured-clone -- Chrome's semantics are JSON's, not structuredClone's
+      const input: unknown = JSON.parse(json)
 
       if (options?.signal?.aborted) {throw options.signal.reason}
 
       let value: unknown
       try {
-        // Chrome 154 passes `(input, { signal })`. Aborting the caller's signal
+        // Chrome passes `(input, { signal })`. Aborting the caller's signal
         // rejects `executeTool` but leaves the handler's signal untouched; only
         // a CDP cancel aborts it, and the fake has no CDP.
         const running = Promise.resolve(entry.execute(input, { signal: new AbortController().signal }))
@@ -117,7 +130,7 @@ export function installTestModelContext(): TestModelContext {
     async getTools() {
       // Reproduce Chrome's RegisteredTool exactly, quirks included:
       //  - `window` makes it circular, so JSON.stringify throws
-      //  - `inputSchema` comes back as a JSON *string*, not an object
+      //  - `inputSchema` is parsed from the JSON taken at registration
       //  - `title` defaults to an empty string
       //  - unknown annotations and `debugging` are stripped, the other three normalised
       // wpt: getTools.https.html — tools come back in lexicographical order,
@@ -126,8 +139,7 @@ export function installTestModelContext(): TestModelContext {
         .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
         .map((t) => ({
           description: t.description,
-          inputSchema:
-            typeof t.inputSchema === 'string' ? t.inputSchema : JSON.stringify(t.inputSchema),
+          inputSchema: schemas.has(t) ? JSON.parse(schemas.get(t)!) : undefined,
           name: t.name,
           origin: location.origin,
           title: t.title ?? '',
@@ -157,9 +169,10 @@ export function installTestModelContext(): TestModelContext {
       if (registry.has(tool.name)) {
         throw new DOMException(`A tool named "${tool.name}" is already registered`, 'InvalidStateError')
       }
+      let schemaJson: string | undefined
       if (tool.inputSchema !== undefined) {
         try {
-          JSON.stringify(tool.inputSchema)
+          schemaJson = JSON.stringify(tool.inputSchema)
         } catch {
           throw new TypeError('Tool inputSchema must be JSON-serializable')
         }
@@ -172,6 +185,7 @@ export function installTestModelContext(): TestModelContext {
       if (options?.signal?.aborted) {throw options.signal.reason}
 
       registry.set(tool.name, tool)
+      if (schemaJson !== undefined) {schemas.set(tool, schemaJson)}
       options?.signal?.addEventListener('abort', () => {
         registry.delete(tool.name)
         target.dispatchEvent(new Event('toolchange'))
@@ -201,15 +215,20 @@ export function installTestModelContext(): TestModelContext {
  *   writeFileSync('schema.json', JSON.stringify(await toolSchemas(), null, 2))
  *
  * `JSON.stringify(await getTools())` cannot stand in for this: a RegisteredTool
- * carries its owner Window and throws on a circular structure, and Chrome hands
- * `inputSchema` back as a JSON string.
+ * carries its owner Window and throws on a circular structure.
  */
 export async function toolSchemas(): Promise<{
-  tools: Array<{ description: string; inputSchema: Record<string, unknown>; name: string }>
+  tools: Array<{
+    annotations?: WebMCP.ToolAnnotations
+    description: string
+    inputSchema: Record<string, unknown>
+    name: string
+  }>
 }> {
   const listed = await modelContext().getTools()
   return {
     tools: listed.map((tool) => ({
+      ...(tool.annotations && { annotations: tool.annotations }),
       description: tool.description,
       inputSchema: readInputSchema(tool.inputSchema) ?? { properties: {}, type: 'object' },
       name: tool.name,

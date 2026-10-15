@@ -35,7 +35,7 @@ export interface ToolDef<S extends InputSchema | undefined = InputSchema | undef
    *
    * `false` unregisters it. A string keeps it registered and refuses every call
    * with that string, so the agent reads *why* it cannot export this report
-   * instead of watching the tool vanish (webmachinelearning/webmcp#262).
+   * instead of watching the tool vanish (WebMCP draft issue 262).
    */
   when?: () => boolean | string
 }
@@ -253,7 +253,7 @@ export function toolExecutor(
   options: RegistryOptions = {},
   descriptorChanged: () => boolean = () => false,
   /**
-   * The tool's registration lifetime. Chrome 154 passes a per-call signal that
+   * The tool's registration lifetime. Chrome 154+ passes a per-call signal that
    * aborts on cancel; this one aborts on unregister, and `execute` receives
    * both merged. Chrome 152 and 153 pass no second argument, so `execute`
    * receives this alone. Measured in e2e/cdp.conformance.ts.

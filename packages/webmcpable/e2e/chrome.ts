@@ -4,11 +4,12 @@ import { existsSync } from 'node:fs'
  * WebMCP ships behind flags, so the native lane needs a real Chrome binary —
  * Playwright's bundled Chromium does not carry the implementation.
  *
- * Chrome 152 is the floor. 149-151 exposed only the testing surface under
- * headless, and 152 is also where `navigator.modelContext` and
- * `navigator.modelContextTesting` were withdrawn.
+ * Chrome 155 is the floor. 149-151 exposed only the testing surface under
+ * headless, 152 withdrew `navigator.modelContext` and
+ * `navigator.modelContextTesting`, and 155 switched `executeTool` input from a
+ * JSON string to an object and returns `inputSchema` as an object.
  */
-export const MINIMUM_CHROME = 152
+export const MINIMUM_CHROME = 155
 
 export const CHROME_FLAGS = [
   '--enable-experimental-web-platform-features',

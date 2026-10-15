@@ -7,11 +7,11 @@ import { story } from 'executable-stories-playwright'
  * Every other lane in this package calls `document.modelContext.executeTool`
  * from inside the page. No agent does that. A real client drives Chrome's CDP
  * `WebMCP` domain from outside the browser — the surface
- * [agent-browser](https://github.com/vercel-labs/agent-browser) exposes as
+ * `agent-browser` exposes as
  * `agent-browser webmcp list|invoke|result|cancel` — and that crossing has its
  * own rules for arguments, results, errors and cancellation.
  *
- * Chrome 154 passes `execute` the input and a `{ signal }` that aborts on
+ * Chrome 154+ passes `execute` the input and a `{ signal }` that aborts on
  * cancel. This lane measures both.
  */
 

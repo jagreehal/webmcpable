@@ -76,6 +76,6 @@ describe('useTools (vue)', () => {
     mount(App)
     await tick()
     const [tool] = await modelContext().getTools()
-    await expect(modelContext().executeTool(tool!, '{"name":"jag"}')).resolves.toBe('hello jag')
+    await expect(modelContext().executeTool(tool!, {"name":"jag"})).resolves.toBe('hello jag')
   })
 })

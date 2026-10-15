@@ -4,8 +4,8 @@ import { isPotentiallyTrustworthyOrigin } from '../origin'
  * behaviour. Pure functions — no IO — so they are trivial to test and to run
  * over anything: a file, an editor buffer, a diff.
  *
- * Every rule cites a source: the W3C draft (webmachinelearning/webmcp) or a
- * measurement in webmcpable's spike/SPIKE-FINDINGS.md.
+ * Every rule cites a source: the W3C WebMCP draft or a measurement in
+ * e2e/CHROME-CONFORMANCE.md.
  */
 
 export interface Finding {
@@ -66,11 +66,13 @@ const RULES: Array<Rule> = [
     severity: 'error',
   },
   {
-    code: 'execute-tool-object',
-    fix: 'Pass `JSON.stringify(args)`.',
+    code: 'execute-tool-string',
+    fix: 'Pass the arguments object itself, not `JSON.stringify(args)`.',
     message: () =>
-      'Chrome requires input arguments as a JSON string and rejects objects with "Failed to parse input arguments".',
-    pattern: /\.executeTool\s*\([^,)]+,\s*\{/g,
+      'Chrome 155 takes input arguments as an object and rejects a JSON string with "invalid input object: value is not an object".',
+    // Raw, because masking blanks the quote this looks for.
+    pattern: /\.executeTool\s*\([^,)'"`]+,\s*(?:['"`]|JSON\.stringify\s*\()/g,
+    raw: true,
     severity: 'error',
   },
   {
@@ -495,7 +497,7 @@ function scanToolObjects(
       if (!members.has('when') && !/\breadOnlyHint\s*:\s*true/.test(body)) {
         report({
           code: 'unconditional-tool',
-          fix: 'Add a `when` predicate, or mark the tool `readOnlyHint: true` if it cannot change user state.',
+          fix: 'Add a `when` predicate, or mark the tool `readOnlyHint: true` if it changes no state, including the current view or tab.',
           message: `"${name}" is always offered and has no \`when\` predicate — a loaded gun with no safety.`,
           severity: 'warning',
         })

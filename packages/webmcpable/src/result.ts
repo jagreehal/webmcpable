@@ -1,6 +1,6 @@
 /**
  * Normalises a handler's return value into what Chrome actually delivers to
- * the agent. Every rule here is measured, not inferred — see spike/SPIKE-FINDINGS.md.
+ * the agent. Every rule here is measured in e2e/CHROME-CONFORMANCE.md.
  */
 export type Handler<T> = () => T | Promise<T>
 

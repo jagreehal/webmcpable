@@ -1,10 +1,9 @@
 /**
  * Read a RegisteredTool's input schema.
  *
- * The draft types this as `object` (index.bs:1207) and webmcp-types agrees,
- * but Chrome returns a JSON string (measured in 151 and 152). Code that does
- * `tool.inputSchema.properties` silently gets undefined. Always go through
- * this. See spike/SPIKE-FINDINGS.md.
+ * The draft types this as `object` (index.bs:1207). Chrome 155 agrees, but
+ * 151-154 returned a JSON string, so `tool.inputSchema.properties` silently
+ * got undefined there. Going through this copes with both.
  */
 export function readInputSchema(schema: unknown): Record<string, unknown> | undefined {
   if (typeof schema === 'string') {
