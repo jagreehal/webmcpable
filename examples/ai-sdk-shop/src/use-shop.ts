@@ -6,8 +6,6 @@ import { emptyBasket, setPackets, summarise, type Basket, type SeedId } from './
 
 export type Call = Parameters<NonNullable<RegistryOptions['onCall']>>[0]
 
-// Every tool names an input: one without it costs its neighbours their argument types.
-const nothing = z.object({})
 const seed = z.enum(['peas', 'beetroot', 'marigold'])
 const line = z.object({ id: seed, name: z.string(), price: z.string() })
 const summary = z.object({
@@ -74,14 +72,12 @@ export function useShop() {
         },
         description: 'Place the order for everything in the basket. The customer approves it on screen first.',
         execute: placeOrder,
-        input: nothing,
         when: () => summarise(latest.current).items.length > 0 || 'The basket is empty, so there is no order to place.',
       },
       read_basket: {
         annotations: { readOnlyHint: true },
         description: 'Read the basket, its total, and the catalogue with prices.',
         execute: () => summarise(latest.current),
-        input: nothing,
         outputSchema: summary,
       },
       remove_from_basket: {

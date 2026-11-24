@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { tools, type InputSchema, type Registry, type RegistryOptions, type ToolDef } from '../tools'
+import { tools, type Registry, type RegistryOptions, type ToolDef } from '../tools'
 
 const reportRegistrationError = (error: unknown) => {
   console.error('[webmcpable] Tool registration failed.', error)
@@ -13,7 +13,7 @@ const reportRegistrationError = (error: unknown) => {
  * component state stays accurate with no manual call. Deliberately thin: no
  * dependency tracking, no signals, no state model of its own.
  */
-export function useTools<T extends Record<string, InputSchema | undefined>>(
+export function useTools<T extends Record<string, unknown>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
   options: RegistryOptions = {},
 ): void {

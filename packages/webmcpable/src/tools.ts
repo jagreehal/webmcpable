@@ -15,7 +15,7 @@ export type ToolAnnotations = {
   untrustedContentHint?: boolean
 }
 
-export interface ToolDef<S extends InputSchema | undefined = InputSchema | undefined> {
+export interface ToolDef<S = InputSchema | undefined> {
   /** The annotations the W3C draft defines. */
   annotations?: ToolAnnotations
   /**
@@ -27,7 +27,7 @@ export interface ToolDef<S extends InputSchema | undefined = InputSchema | undef
   execute: (input: Infer<S>, options: { signal: AbortSignal }) => unknown
   /** Origins in the current document tree that may discover and call this tool. */
   exposedTo?: Array<string>
-  input?: S
+  input?: S & (InputSchema | undefined)
   /** The shape of a successful result. Refusals and errors still return text. */
   outputSchema?: InputSchema
   title?: string
@@ -330,7 +330,9 @@ const holdReadiness = (): (() => void) => {
   return release
 }
 
-export function tools<T extends Record<string, InputSchema | undefined>>(
+// `unknown`, because a tool without `input` infers it, and a narrower bound
+// would cost every other tool in the call its argument type.
+export function tools<T extends Record<string, unknown>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
   options?: RegistryOptions,
 ): Registry

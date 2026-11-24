@@ -1,4 +1,4 @@
-import { toJsonSchema, toolExecutor, type InputSchema, type RegistryOptions, type ToolDef } from './tools'
+import { toJsonSchema, toolExecutor, type RegistryOptions, type ToolDef } from './tools'
 
 /**
  * A tool in the shape Chrome's Prompt API takes:
@@ -31,7 +31,7 @@ export interface LocalTool {
  * up a change. A tool whose `when` turns false afterwards still refuses at call
  * time, so a stale array cannot run something the user can no longer do.
  */
-export function localTools<T extends Record<string, InputSchema | undefined>>(
+export function localTools<T extends Record<string, unknown>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
   options?: RegistryOptions,
 ): Array<LocalTool>
