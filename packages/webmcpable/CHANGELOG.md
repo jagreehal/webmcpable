@@ -1,5 +1,11 @@
 # webmcpable
 
+## 0.8.1
+
+### Patch Changes
+
+- 83cdf44: `tools()`, `useTools()` and `localTools()` infer each handler's argument when some tools declare no `input`.
+
 ## 0.8.0
 
 ### Minor Changes
