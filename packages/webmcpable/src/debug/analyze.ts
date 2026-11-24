@@ -54,6 +54,7 @@ export interface InspectedTool {
   /** An object from `getTools()`, or a JSON string from the older `listTools()`. */
   inputSchema?: unknown
   name: string
+  outputSchema?: unknown
   /** Display label the browser may promote over `name` in a consent dialogue. */
   title?: string
 }
@@ -255,7 +256,7 @@ export function analyzeTool(tool: InspectedTool): Array<Finding> {
 }
 
 /** The descriptor fields a user would have seen when they approved the tool. */
-const DESCRIPTOR: Array<keyof InspectedTool> = ['description', 'inputSchema', 'annotations', 'title']
+const DESCRIPTOR: Array<keyof InspectedTool> = ['description', 'inputSchema', 'outputSchema', 'annotations', 'title']
 
 /**
  * A tool that changed under a name the agent has already been offered. The

@@ -187,7 +187,7 @@ That crossing has rules the in-page API does not, all measured in
 | `throw new Error('out of stock')` | `status: "Completed"`, `output: "Error: out of stock"` |
 | a tool registered in a same-origin child frame | *nothing*. Never advertised |
 
-The fourth row is a trade rather than a bug. Chrome replaces a thrown message
+The fourth row is a trade. Chrome replaces a thrown message
 with a generic `UnknownError` on the in-page path, so `webmcpable` catches and
 returns the text — which is the only way an agent reads what went wrong. The
 cost is that a client watching `status` alone sees success. A tool that throws
@@ -246,6 +246,10 @@ export_report: {
   execute: exportReport,
 }
 ```
+
+In Chrome 160 the registry calls `waitForToolsUntil()` while it registers tools,
+so agents know to wait for the full list. It skips the call when the browser
+lacks the method, and when a sync registers no tools.
 
 Call `registry.revalidate()` after state changes. The framework adapters below
 call it for you as their framework updates.
@@ -325,6 +329,7 @@ yield* registry.mount
 
 `effectTools` accepts Effect handlers and preserves typed failures. A change to
 a watched ref triggers revalidation. Closing the scope unregisters the tools.
+A definition takes the same `confirm`, `exposedTo` and `outputSchema` as `tools()`.
 
 ## The same tools, on-device
 
@@ -383,9 +388,23 @@ expect(mc.calls).toEqual([
 ])
 ```
 
-The harness reproduces Chrome 155's object arguments, `(input, { signal })`
-calls, annotation normalization, result serialization, error handling,
-registration validation, and lexicographical tool ordering.
+The harness reproduces Chrome 160's `Tool` objects, along with object arguments,
+`(input, { signal })` calls, annotation normalization, result serialization,
+error handling, registration validation, and lexicographical tool ordering.
+
+Chrome 158 and later return `Tool` objects from `getTools()`. Read each member
+you need: `JSON.stringify(tool)` gives `{}`, and a spread copies no members.
+Chrome 160 adds `outputSchema` and renames `window` to `source`. To support both
+names, use a fallback:
+
+```ts
+const source = tool.source ?? tool.window
+```
+
+In Chrome 160 `inputSchema`, `outputSchema`, and `annotations` are null when the
+tool omits them. Pass `executeTool()` the `Tool` you got from `getTools()`: a copy
+gives a `TypeError`, and a `Tool` you have since unregistered gives a
+`NotFoundError`.
 
 ### End-to-end, in Playwright
 
@@ -415,7 +434,7 @@ catches it.
 
 `modelContext` offers three things:
 
-- `getTools()`, with `inputSchema` as an object. Chrome 151-154 returned a JSON
+- `getTools()`, with `inputSchema` and `outputSchema` as objects. Chrome 151-154 returned a JSON
   string, and this parses it.
 - `callTool(name, input)`, which looks the tool up the way an agent does.
 - `calls()`, every invocation so far with its input, for asserting what the
@@ -448,9 +467,9 @@ CHROME_BIN="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
   pnpm --filter webmcpable test:conformance
 ```
 
-It drives a real Chrome — 155 or newer, launched with the WebMCP flags —
+It drives a real Chrome (158 or newer, launched with the WebMCP flags)
 against the built bundle, asserting the same things the in-memory harness
-asserts. When it fails, the copy is wrong, not the browser. It regenerates
+asserts. When it fails, update the copy to match the browser. It regenerates
 [`e2e/CHROME-CONFORMANCE.md`](./packages/webmcpable/e2e/CHROME-CONFORMANCE.md)
 as it goes, so the measurements are output rather than prose someone remembered
 to update.
@@ -491,8 +510,8 @@ writeFileSync('schema.json', JSON.stringify(await toolSchemas(), null, 2))
 npx webmcp-evals local -t schema.json -e evals.json
 ```
 
-`JSON.stringify(await getTools())` cannot stand in for this — a `RegisteredTool`
-carries its owner `Window` and throws on a circular structure.
+`JSON.stringify(await getTools())` gives `{}` for each tool, so use
+`toolSchemas()` here.
 
 `doctor` and the debug panel are the cheap version of the same question: a thin
 description or an undescribed parameter is a tool a model will misfire on, and
@@ -502,7 +521,7 @@ neither costs an API key.
 
 An agent driving your site runs in the session the user is already signed into,
 and the user's only checkpoint is a consent dialogue **the browser renders, not
-your page**. A `RegisteredTool` carries no reference to the code behind it, so
+your page**. A `Tool` carries no reference to the code behind it, so
 nothing in the page can bind the name a user approved to the function that runs.
 That gap belongs to the browser.
 
@@ -576,9 +595,8 @@ npx webmcpable spec-check    # report changes to the draft WebIDL
 
 Treat `spec-check` as a drift alarm rather than a correctness oracle. `doctor`
 reads your source for hazards Chrome hides at runtime: an invented
-`destructiveHint` or an `outputSchema`, both discarded without an error; a
-description built by interpolation; a tool that navigates away before its
-result is delivered.
+`destructiveHint`, discarded without an error; a description built by
+interpolation; a tool that navigates away before its result is delivered.
 
 ## API vocabulary
 
@@ -590,7 +608,10 @@ changes nothing — the second also skips `confirm`. The draft also defines
 
 `tools()` returns a **registry**. `mount` registers, `revalidate` re-evaluates
 every `when`, `unmount` aborts. A **tool** is a name, a description, an optional
-input schema, and an `execute` function. Set `exposedTo` when callers in other origins of
+input schema, and an `execute` function. Add `outputSchema` (JSON Schema or a
+Standard Schema) to describe a successful result. Chrome 160 and later hand it to
+the agent. `webmcpable` does not validate results against it, and refusals and
+errors still return text. Set `exposedTo` when callers in other origins of
 the current document tree need access — exact secure origins only, measured in
 [`e2e/model-context.conformance.ts`](./packages/webmcpable/e2e/model-context.conformance.ts):
 Chrome refuses plain `http:` and has no wildcard. Pass `{ titles: 'off' }` to withhold

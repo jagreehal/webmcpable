@@ -1,5 +1,5 @@
 import { Effect, SubscriptionRef } from 'effect'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 import { modelContext } from '../model-context'
 import { installTestModelContext } from '../testing/index'
@@ -67,6 +67,69 @@ describe('effectTools', () => {
     )
   })
 
+  it('honours confirm on a single tool, over the registry', async () => {
+    const ran: Array<string> = []
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const registry = yield* effectTools(
+            {
+              close: {
+                confirm: () => false,
+                description: 'Close the account',
+                execute: () => Effect.sync(() => ran.push('close')),
+              },
+              open: { confirm: false, description: 'Open the account', execute: () => Effect.succeed('opened') },
+            },
+            { confirm: () => false },
+          )
+          yield* registry.mount
+          const [close, open] = yield* Effect.promise(() => modelContext().getTools())
+          expect(yield* Effect.promise(() => modelContext().executeTool(close!, {}))).toBe('close was not confirmed.')
+          expect(yield* Effect.promise(() => modelContext().executeTool(open!, {}))).toBe('opened')
+        }),
+      ),
+    )
+    expect(ran).toEqual([])
+  })
+
+  it('passes exposed origins to the browser', async () => {
+    const registerTool = vi.spyOn(modelContext(), 'registerTool')
+    const exposedTo = ['https://agent.example']
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const registry = yield* effectTools({
+            a: { description: 'A tool', execute: () => Effect.succeed('ok'), exposedTo },
+          })
+          yield* registry.mount
+        }),
+      ),
+    )
+    expect(registerTool).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'a' }),
+      expect.objectContaining({ exposedTo }),
+    )
+  })
+
+  it('reports calls to onCall', async () => {
+    const seen: Array<string> = []
+    await run(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const registry = yield* effectTools(
+            { open: { description: 'Open the account', execute: () => Effect.succeed('opened') } },
+            { onCall: ({ name, result }) => seen.push(`${name}:${result}`) },
+          )
+          yield* registry.mount
+          const [tool] = yield* Effect.promise(() => modelContext().getTools())
+          yield* Effect.promise(() => modelContext().executeTool(tool!, {}))
+        }),
+      ),
+    )
+    expect(seen).toEqual(['open:opened'])
+  })
+
   it('re-evaluates `when` when a SubscriptionRef changes, with no manual call', async () => {
     const cart = await run(SubscriptionRef.make(0))
 
@@ -119,11 +182,16 @@ describe('effectTools', () => {
       Effect.scoped(
         Effect.gen(function* () {
           const registry = yield* effectTools({
-            a: { description: 'A tool that does a thing', execute: () => Effect.succeed('ok') },
+            a: {
+              description: 'A tool that does a thing',
+              execute: () => Effect.succeed('ok'),
+              outputSchema: { type: 'string' },
+            },
           })
           yield* registry.mount
           const live = yield* Effect.promise(() => modelContext().getTools())
           expect(live.length).toBe(1)
+          expect(live[0]!.outputSchema).toEqual({ type: 'string' })
         }),
       ),
     )

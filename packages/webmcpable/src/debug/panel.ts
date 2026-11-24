@@ -67,10 +67,9 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
 
   async function refresh() {
     if (!supported) {return render()}
-    // getTools() is the richer source — RegisteredTool carries `annotations`,
-    // which listTools() omits. Its results are circular (they hold an owner
-    // `window`), so pick fields explicitly and never spread. listTools() fills
-    // in an inputSchema when getTools() does not expose one.
+    // getTools() returns Tool, which carries `annotations`. Its members are
+    // getters, which a spread does not copy, so pick fields explicitly.
+    // listTools() fills in an inputSchema when getTools() does not expose one.
     // Chrome 152 removed modelContextTesting and getTools() carries the schema,
     // so this only fills a gap on 151 and earlier.
     const listed = navigator.modelContextTesting?.listTools() ?? []
@@ -82,6 +81,7 @@ export function mountDebugPanel(options: DebugPanelOptions = {}): { destroy(): v
         description: t.description,
         inputSchema: t.inputSchema ?? schemaByName.get(t.name),
         name: t.name,
+        ...(t.outputSchema ? { outputSchema: t.outputSchema } : {}),
         ...(registered.title ? { title: registered.title } : {}),
         ...(registered.annotations ? { annotations: registered.annotations } : {}),
       }

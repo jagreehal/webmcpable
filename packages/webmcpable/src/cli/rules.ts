@@ -69,7 +69,7 @@ const RULES: Array<Rule> = [
     code: 'execute-tool-string',
     fix: 'Pass the arguments object itself, not `JSON.stringify(args)`.',
     message: () =>
-      'Chrome 155 takes input arguments as an object and rejects a JSON string with "invalid input object: value is not an object".',
+      'Chrome 155 and later take input arguments as an object and reject a JSON string with a TypeError.',
     // Raw, because masking blanks the quote this looks for.
     pattern: /\.executeTool\s*\([^,)'"`]+,\s*(?:['"`]|JSON\.stringify\s*\()/g,
     raw: true,
@@ -89,7 +89,7 @@ const RULES: Array<Rule> = [
     code: 'stringify-registered-tool',
     fix: 'Pick the fields you need explicitly.',
     message: () =>
-      'A RegisteredTool carries an owner `window`, so JSON.stringify throws "Converting circular structure to JSON".',
+      'A Tool from getTools() serialises as "{}", because its members are getters. Older Chrome throws on it instead.',
     pattern: /JSON\.stringify\s*\(\s*(tools|registeredTools)\b/g,
     severity: 'warning',
   },
@@ -428,15 +428,6 @@ function scanToolObjects(
       const { column, line } = lineColumn(source, match.index)
       const report = (finding: Omit<Finding, 'column' | 'file' | 'line'>) =>
         findings.push({ ...finding, column, file, line })
-
-      if (members.has('outputSchema')) {
-        report({
-          code: 'output-schema',
-          fix: 'Say what the result looks like in the description — that is the only channel the agent reads.',
-          message: `"${name}" declares an outputSchema, which is not in the WebMCP draft and is dropped at registration.`,
-          severity: 'error',
-        })
-      }
 
       const title = literal(members.get('title')?.value)
       if (title && !fold(title).includes(fold(name))) {

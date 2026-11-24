@@ -67,6 +67,77 @@ describe('useTools', () => {
     expect(await names()).toEqual(['checkout'])
   })
 
+  it('honours confirm on a single tool, following the latest render', async () => {
+    const ran: Array<string> = []
+    const App = ({ allow }: { allow: boolean }) => {
+      useTools(
+        {
+          close: { confirm: () => allow, description: 'Close the account', execute: () => { ran.push('close'); return 'closed' } },
+          open: { confirm: false, description: 'Open the account', execute: () => 'opened' },
+        },
+        { confirm: () => false },
+      )
+      return null
+    }
+    const { rerender } = render(<App allow={false} />)
+    await act(async () => {})
+    const call = async (name: string) =>
+      modelContext().executeTool((await modelContext().getTools()).find((t) => t.name === name)!, {})
+
+    expect(await call('close')).toBe('close was not confirmed.')
+    expect(ran).toEqual([])
+    expect(await call('open')).toBe('opened')
+
+    rerender(<App allow />)
+    await act(async () => {})
+    expect(await call('close')).toBe('closed')
+  })
+
+  it('asks for a tool that sets confirm with no registry confirm', async () => {
+    let ran = false
+    function App() {
+      useTools({ close: { confirm: () => false, description: 'Close the account', execute: () => { ran = true } } })
+      return null
+    }
+    render(<App />)
+    await act(async () => {})
+    const [tool] = await modelContext().getTools()
+    expect(await modelContext().executeTool(tool!, {})).toBe('close was not confirmed.')
+    expect(ran).toBe(false)
+  })
+
+  it('reports calls to the onCall of the latest render', async () => {
+    const seen: Array<string> = []
+    const App = ({ label }: { label?: string }) => {
+      useTools(
+        { open: { description: 'Open the account', execute: () => 'opened' } },
+        { onCall: label ? ({ name, result }) => seen.push(`${label}:${name}:${result}`) : undefined },
+      )
+      return null
+    }
+    const { rerender } = render(<App />)
+    await act(async () => {})
+    const [tool] = await modelContext().getTools()
+    await modelContext().executeTool(tool!, {})
+    expect(seen).toEqual([])
+
+    for (const label of ['first', 'second']) {
+      rerender(<App label={label} />)
+      await act(async () => {})
+      await modelContext().executeTool(tool!, {})
+    }
+    expect(seen).toEqual(['first:open:opened', 'second:open:opened'])
+  })
+
+  it('passes outputSchema through', async () => {
+    function App() {
+      useTools({ search: { description: 'Search', execute: () => 'ok', outputSchema: { type: 'string' } } })
+      return null
+    }
+    render(<App />)
+    expect((await modelContext().getTools())[0]?.outputSchema).toEqual({ type: 'string' })
+  })
+
   it('updates registration metadata without changing the tool name', async () => {
     let rename: () => void = () => {}
     function App() {

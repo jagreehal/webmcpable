@@ -173,6 +173,39 @@ test('a JSON result reaches the client structured, not as a string', async ({ pa
   expect(voider.output).toBe('Operation succeeded')
 })
 
+test('a result reaches the client whether or not it matches the output schema', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('two webmcpable tools with an output schema, one of which throws')
+  await page.evaluate(async () => {
+    const outputSchema = { properties: { n: { type: 'number' } }, required: ['n'], type: 'object' }
+    await window.webmcpable
+      .tools({
+        matches: { description: 'Matches', execute: () => ({ n: 1 }), outputSchema },
+        throws: {
+          description: 'Throws',
+          execute: () => {
+            throw new Error('out of stock')
+          },
+          outputSchema,
+        },
+      })
+      .mount()
+  })
+  const agent = await client(page)
+
+  story.when('a client invokes both')
+  const matches = await agent.invoke('matches')
+  const throws = await agent.invoke('throws')
+
+  story.then('the matching result arrives structured')
+  expect(matches.output).toEqual({ n: 1 })
+
+  story.then('the error text arrives as a completed call')
+  expect(throws.status).toBe('Completed')
+  expect(throws.output).toBe('Error: out of stock')
+})
+
 test('a thrown error reaches the client as a completed call carrying the message', async ({
   page,
 }, testInfo) => {

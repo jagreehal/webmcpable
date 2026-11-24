@@ -8,7 +8,7 @@ import { MINIMUM_CHROME } from './chrome'
  * The unit suite runs against `installTestModelContext()`, which is a
  * transcription of what a browser once did. Nothing keeps a transcription
  * honest except reading the original again, which is this file's whole job.
- * When one of these fails, the fake is wrong — not the browser.
+ * When one of these fails, update the fake to match the browser.
  */
 
 const HARNESS = '/e2e/fixtures/harness.html'
@@ -108,6 +108,7 @@ test('executeTool takes an object and rejects a JSON string', async ({ page }, t
       jsonString: await attempt(JSON.stringify({ q: 'x' })),
       object: await attempt({ q: 'x' }),
       omitted: await attempt(undefined),
+      toJSON: await attempt({ toJSON() {} }),
     }
   })
 
@@ -115,9 +116,14 @@ test('executeTool takes an object and rejects a JSON string', async ({ page }, t
   expect(result.object).toBe('{"q":"x"}')
 
   story.then('the JSON string Chrome 152-154 required is now a TypeError')
-  // 155: "invalid input object: value is not an object". 158 rejects it at the
-  // binding layer instead: "parameter 2 is not of type 'object'".
-  expect(result.jsonString).toMatch(/^TypeError: Failed to execute 'executeTool' on 'ModelContext': /)
+  expect(result.jsonString).toBe(
+    "TypeError: Failed to execute 'executeTool' on 'ModelContext': parameter 2 is not of type 'object'.",
+  )
+
+  story.then('a toJSON that returns undefined is a TypeError')
+  expect(result.toJSON).toBe(
+    "TypeError: Failed to execute 'executeTool' on 'ModelContext': invalid input object: toJSON() returns undefined",
+  )
 
   story.then('omitted input arrives as an empty object, and an array passes through')
   expect(result.omitted).toBe('{}')
@@ -243,11 +249,12 @@ test('execute receives a signal that a caller’s abort leaves alone', async ({ 
   expect(out.handlerAborted).toBe(false)
 })
 
-test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, testInfo) => {
+test('a Tool is shaped the way webmcpable assumes', async ({ page }, testInfo) => {
   story.init({ page }, testInfo)
 
-  story.given('a tool registered with debugging and every annotation server-side MCP defines')
+  story.given('a tool registered with debugging and every annotation server-side MCP defines, and one with neither')
   const tool = await page.evaluate(async () => {
+    await document.modelContext.registerTool({ description: 'x', execute: () => 'ok', name: 'bare' })
     await document.modelContext.registerTool({
       annotations: {
         confirmationHint: true, debugging: true, destructiveHint: true, idempotentHint: true,
@@ -257,45 +264,125 @@ test('a RegisteredTool is shaped the way webmcpable assumes', async ({ page }, t
       execute: () => 'ok',
       inputSchema: { properties: {}, type: 'object' },
       name: 'probe',
-      // Not in the draft.
-      outputSchema: { properties: { result: { type: 'string' } }, type: 'object' },
-    })
-    const [registered] = await document.modelContext.getTools()
-    let circular = false
-    try { JSON.stringify(registered) } catch { circular = true }
+      outputSchema: { type: 'string' },
+    } as never)
+    const [bare, probe] = await document.modelContext.getTools()
+    let cloned = 'cloned'
+    try { structuredClone(probe) } catch (error) { cloned = error.name }
     return {
-      annotations: registered.annotations,
+      annotations: probe.annotations,
+      bare: [bare.inputSchema, bare.outputSchema, bare.annotations],
       chrome: Number(navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] ?? 0),
-      circular,
-      keys: Object.keys(registered).sort(),
-      outputSchema: registered.outputSchema,
-      schemaType: typeof registered.inputSchema,
-      title: registered.title,
+      cloned,
+      json: JSON.stringify(probe),
+      outputSchema: probe.outputSchema,
+      schemaType: typeof probe.inputSchema,
+      source: probe.source === window,
+      spread: Object.keys({ ...probe }),
+      title: probe.title,
+      window: probe.window === window,
     }
   })
 
   story.then('inputSchema comes back as an object, as the draft types it')
   expect(tool.schemaType).toBe('object')
 
-  story.then('Chrome returns its hints with defaults, drops server-side MCP names, and keeps debugging from 156')
+  story.then('Chrome returns its hints with defaults and drops server-side MCP names')
   expect(tool.annotations).toEqual({
-    consequentialHint: false, readOnlyHint: true, untrustedContentHint: false,
-    ...(tool.chrome >= 156 && { debugging: true }),
+    consequentialHint: false, debugging: true, readOnlyHint: true, untrustedContentHint: false,
   })
 
-  story.then('it carries a Window, so JSON.stringify throws')
-  expect(tool.circular).toBe(true)
+  story.then('its members are getters: JSON.stringify gives {}, spread copies nothing, structuredClone throws')
+  expect(tool.json).toBe('{}')
+  expect(tool.spread).toEqual([])
+  expect(tool.cloned).toBe('DataCloneError')
 
   story.then('title defaults to an empty string')
   expect(tool.title).toBe('')
 
-  story.then('outputSchema is dropped without an error, the way invented annotations are')
-  expect(tool.outputSchema).toBeUndefined()
+  story.then('from 160 it carries source and outputSchema; before that, window and no outputSchema')
+  const is160 = tool.chrome >= 160
+  expect(tool.source).toBe(is160)
+  expect(tool.window).toBe(!is160)
+  expect(tool.outputSchema).toEqual(is160 ? { type: 'string' } : undefined)
 
-  story.then('the key set matches the pinned WebIDL')
-  expect(tool.keys).toEqual([
-    'annotations', 'description', 'inputSchema', 'name', 'origin', 'title', 'window',
-  ])
+  story.then('what was not sent is null')
+  expect(tool.bare).toEqual([null, is160 ? null : undefined, null])
+})
+
+test('tools() passes outputSchema on and holds readiness while it registers', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('two tools registered through webmcpable, one with an output schema')
+  const out = await page.evaluate(async () => {
+    const mc = document.modelContext
+    const held: Array<Promise<unknown>> = []
+    const native = mc.waitForToolsUntil
+    if (native) {mc.waitForToolsUntil = (promise) => { held.push(promise); native.call(mc, promise) }}
+    let unhandled = 0
+    addEventListener('unhandledrejection', () => unhandled++)
+    const registry = window.webmcpable.tools({
+      a: { description: 'Counts', execute: () => ({ n: 1 }), outputSchema: { properties: { n: { type: 'number' } }, type: 'object' } },
+      b: { description: 'Plain', execute: () => 'ok' },
+    })
+    await registry.mount()
+    await registry.revalidate()
+    await Promise.all(held)
+    native?.call(mc, Promise.reject(new Error('late')))
+    native?.call(mc, new Promise(() => {}))
+    const [a] = await mc.getTools()
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    return {
+      chrome: Number(navigator.userAgent.match(/Chrome\/(\d+)/)?.[1] ?? 0),
+      held: held.length,
+      outputSchema: a.outputSchema,
+      result: await mc.executeTool(a, {}),
+      unhandled,
+    }
+  })
+  const is160 = out.chrome >= 160
+
+  story.then('from 160 the browser returns the output schema')
+  expect(out.outputSchema).toEqual(
+    is160 ? { properties: { n: { type: 'number' } }, type: 'object' } : undefined,
+  )
+  expect(out.result).toBe('{"n":1}')
+
+  story.then('from 160 mount holds readiness once, and a sync that registers no tools leaves it alone')
+  expect(out.held).toBe(is160 ? 1 : 0)
+
+  story.then('the browser handles a rejected promise, and getTools in the page does not wait for a pending one')
+  expect(out.unhandled).toBe(0)
+})
+
+test('executeTool runs the registration getTools returned', async ({ page }, testInfo) => {
+  story.init({ page }, testInfo)
+
+  story.given('a Tool whose registration ended and whose name was registered again')
+  story.when('the agent executes it, and a copy of a live one')
+  const errors = await page.evaluate(async () => {
+    const mc = document.modelContext
+    const attempt = (tool) => mc.executeTool(tool, {}).catch((error) => `${error.name}: ${error.message}`)
+    const controller = new AbortController()
+    const definition = { description: 'x', execute: () => 'ran', name: 'a' }
+    await mc.registerTool(definition, { signal: controller.signal })
+    const [stale] = await mc.getTools()
+    controller.abort()
+    await mc.registerTool(definition)
+    const [fresh] = await mc.getTools()
+    return { copy: await attempt({ ...fresh }), fresh: await attempt(fresh), stale: await attempt(stale) }
+  })
+
+  story.then('the stale Tool is a NotFoundError, even with the name taken again')
+  expect(errors.stale).toBe('NotFoundError: The requested tool was not found or is not accessible.')
+
+  story.then('a copy is a TypeError')
+  expect(errors.copy).toBe(
+    "TypeError: Failed to execute 'executeTool' on 'ModelContext': parameter 1 is not of type 'Tool'.",
+  )
+
+  story.then('a fresh one runs')
+  expect(errors.fresh).toBe('ran')
 })
 
 test('registration rejects the same things the fake rejects', async ({ page }, testInfo) => {

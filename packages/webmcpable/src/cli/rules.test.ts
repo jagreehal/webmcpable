@@ -64,7 +64,7 @@ describe('scanSource', () => {
     expect(finding!.code).toBe('mcp-envelope')
   })
 
-  it('flags JSON.stringify on getTools output, which is circular', () => {
+  it('flags JSON.stringify on getTools output, which serialises as {}', () => {
     const [finding] = scan('const tools = await mc.getTools(); JSON.stringify(tools)')
     expect(finding!.code).toBe('stringify-registered-tool')
   })
@@ -326,28 +326,17 @@ describe('scanSource', () => {
     expect(codes('/* description: `Search results for ${query}` */')).toEqual([])
   })
 
-  it('leaves outputSchema alone outside a tool definition', () => {
+  it('accepts outputSchema, which the draft defines', () => {
     expect(
       codes(`
-        const validation = {
-          outputSchema: { type: 'object' },
+        search: {
+          description: 'Searches for flights',
+          execute: searchFlights,
+          outputSchema: { type: 'string' },
+          when: () => true,
         }
       `),
     ).toEqual([])
-  })
-
-  it('flags outputSchema on a tool exported as a plain object', () => {
-    expect(
-      codes(`
-        export const searchFlightsTool = {
-          annotations: { readOnlyHint: true },
-          description: 'Searches for flights with the given parameters',
-          execute: searchFlights,
-          name: 'searchFlights',
-          outputSchema: { type: 'string' },
-        }
-      `),
-    ).toContain('output-schema')
   })
 
   it('checks a tool passed straight to registerTool', () => {

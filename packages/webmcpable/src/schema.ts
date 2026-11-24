@@ -1,7 +1,7 @@
 /**
- * Read a RegisteredTool's input schema.
+ * Read a Tool's input schema.
  *
- * The draft types this as `object` (index.bs:1207). Chrome 155 agrees, but
+ * The draft types this as `object`, null when there is none. Chrome 155 agrees, but
  * 151-154 returned a JSON string, so `tool.inputSchema.properties` silently
  * got undefined there. Going through this copes with both.
  */

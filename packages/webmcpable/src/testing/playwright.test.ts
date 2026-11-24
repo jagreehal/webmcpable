@@ -104,17 +104,32 @@ describe('webmcpable/testing/playwright', () => {
       ])
     })
 
-    it('carries title, origin, and all three annotation hints', async () => {
+    it('carries title, origin, and all four annotations', async () => {
       await mountCart()
       const byName = Object.fromEntries((await context.getTools()).map((t) => [t.name, t]))
 
       expect(byName['add_to_cart']).toMatchObject({ origin: location.origin, title: 'Add to cart' })
-      // Chrome returns all three hints once any are sent, so none is undefined.
+      // Chrome returns all four once any are sent, so none is undefined.
       expect(byName['cart_total']!.annotations).toEqual({
         consequentialHint: false,
+        debugging: false,
         readOnlyHint: true,
         untrustedContentHint: false,
       })
+    })
+
+    it('carries outputSchema, and undefined without one', async () => {
+      const raw = { description: 'Raw', execute: () => 'ok' }
+      await document.modelContext!.registerTool({ ...raw, name: 'bare' })
+      await document.modelContext!.registerTool({ ...raw, name: 'full', outputSchema: { type: 'string' } })
+
+      expect((await context.getTools()).map((t) => t.outputSchema)).toEqual([undefined, { type: 'string' }])
+    })
+
+    it('reports a missing schema as undefined', async () => {
+      await document.modelContext!.registerTool({ description: 'No schema', execute: () => 'ok', name: 'raw' })
+
+      expect((await context.getTools())[0]!.inputSchema).toBeUndefined()
     })
 
     it('reports an unparseable schema as undefined rather than throwing', async () => {

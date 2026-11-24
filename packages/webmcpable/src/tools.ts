@@ -28,6 +28,8 @@ export interface ToolDef<S extends InputSchema | undefined = InputSchema | undef
   /** Origins in the current document tree that may discover and call this tool. */
   exposedTo?: Array<string>
   input?: S
+  /** The shape of a successful result. Refusals and errors still return text. */
+  outputSchema?: InputSchema
   title?: string
   /**
    * Whether the agent may use this tool. Re-evaluated on `revalidate()`, so the
@@ -232,6 +234,7 @@ export const descriptorKey = (
     effectiveTitle(def, titles),
     def.description,
     toJsonSchema(def.input),
+    def.outputSchema && toJsonSchema(def.outputSchema),
     def.annotations,
     def.exposedTo,
   ])
@@ -315,6 +318,18 @@ export function toolExecutor(
   }
 }
 
+/** Chrome 160 lets agents wait while a page registers tools. Returns the release. */
+const holdReadiness = (): (() => void) => {
+  let release!: () => void
+  const registered = new Promise<void>((resolve) => {release = resolve})
+  try {
+    modelContext().waitForToolsUntil?.(registered)
+  } catch {
+    // A document that may not use tools. registerTool rejects there too, naming the tool.
+  }
+  return release
+}
+
 export function tools<T extends Record<string, InputSchema | undefined>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
   options?: RegistryOptions,
@@ -338,6 +353,7 @@ export function tools(defs: Record<string, ToolDef>, options: RegistryOptions = 
           name,
           ...(title !== undefined && { title }),
           inputSchema: toJsonSchema(def.input),
+          ...(def.outputSchema && { outputSchema: toJsonSchema(def.outputSchema) }),
           ...(def.annotations && { annotations: def.annotations }),
           execute: toolExecutor(
             name,
@@ -384,23 +400,28 @@ export function tools(defs: Record<string, ToolDef>, options: RegistryOptions = 
     for (const name of [...live.keys()]) {
       if (!defined.has(name)) {remove(name)}
     }
-    for (const [name, def] of Object.entries(defs)) {
-      const entry = live.get(name)
-      // Only an outright `false` takes the tool away. A reason string keeps it
-      // listed, so the agent can still call it and be told what is wrong.
-      if (availability(def) === false) {
+    // Held only when something registers: adapters sync on every render.
+    let release: (() => void) | undefined
+    try {
+      for (const [name, def] of Object.entries(defs)) {
+        const entry = live.get(name)
+        // Only an outright `false` takes the tool away. A reason string keeps it
+        // listed, so the agent can still call it and read the reason.
+        if (availability(def) === false) {
+          if (entry) {remove(name)}
+          continue
+        }
+        // A description or schema built from application state can change without
+        // the name changing. Reconciling on the name alone leaves the agent
+        // reading the descriptor this tool had at mount time, forever.
+        const key = descriptorKey(name, def, options.titles)
+        if (entry?.key === key) {continue}
+        release ??= holdReadiness()
         if (entry) {remove(name)}
-        continue
-      }
-      // A description or schema built from application state can change without
-      // the name changing. Reconciling on the name alone leaves the agent
-      // reading the descriptor this tool had at mount time, forever.
-      const key = descriptorKey(name, def, options.titles)
-      if (!entry) {await add(name, def, key)}
-      else if (entry.key !== key) {
-        remove(name)
         await add(name, def, key)
       }
+    } finally {
+      release?.()
     }
   }
 

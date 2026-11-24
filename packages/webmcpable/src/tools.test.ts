@@ -3,7 +3,7 @@ import * as z from 'zod'
 import { readInputSchema } from './schema'
 import { installTestModelContext } from './testing/index'
 import { modelContext } from './model-context'
-import { toolExecutor, tools } from './tools'
+import { toolExecutor, tools, type InputSchema } from './tools'
 
 const names = async () => (await modelContext().getTools()).map((t) => t.name).sort()
 
@@ -41,6 +41,78 @@ describe('tools()', () => {
       expect.objectContaining({ name: 'a' }),
       expect.objectContaining({ exposedTo }),
     )
+  })
+
+  it('passes outputSchema to the browser, and re-registers when it changes', async () => {
+    const count = { description: 'a', execute: () => ({ n: 1 }), outputSchema: z.object({ n: z.number() }) as InputSchema }
+    const r = tools({ count })
+    await r.mount()
+    const [first] = await modelContext().getTools()
+    expect(first!.outputSchema).toMatchObject({ properties: { n: { type: 'number' } }, type: 'object' })
+
+    count.outputSchema = { type: 'object' }
+    await r.revalidate()
+    const [second] = await modelContext().getTools()
+    expect(second!.outputSchema).toEqual({ type: 'object' })
+    await expect(modelContext().executeTool(second!, {})).resolves.toBe('{"n":1}')
+  })
+
+  describe('waitForToolsUntil', () => {
+    const spyOnHold = () =>
+      vi.spyOn(modelContext() as Required<Pick<WebMCP.ModelContext, 'waitForToolsUntil'>>, 'waitForToolsUntil')
+    const twoTools = () =>
+      tools({
+        a: { description: 'a', execute: () => 'a' },
+        b: { description: 'b', execute: () => 'b' },
+      })
+
+    it('holds once per sync, until every tool has registered', async () => {
+      const context = modelContext()
+      const hold = spyOnHold()
+      const registerTool = context.registerTool.bind(context)
+      let settled = false
+      const settledAtRegister: Array<boolean> = []
+      vi.spyOn(context, 'registerTool').mockImplementation(async (tool, options) => {
+        void hold.mock.calls[0]![0].then(() => {settled = true})
+        await registerTool(tool as WebMCP.ModelContextTool, options)
+        settledAtRegister.push(settled)
+      })
+
+      await twoTools().mount()
+
+      expect(hold).toHaveBeenCalledTimes(1)
+      expect(settledAtRegister).toEqual([false, false])
+      await expect(hold.mock.calls[0]![0]).resolves.toBeUndefined()
+    })
+
+    it('stays quiet when nothing registers', async () => {
+      const r = twoTools()
+      await r.mount()
+      const hold = spyOnHold()
+      await r.revalidate()
+      expect(hold).not.toHaveBeenCalled()
+    })
+
+    it('releases when a registration fails', async () => {
+      const hold = spyOnHold()
+      vi.spyOn(modelContext(), 'registerTool').mockRejectedValueOnce(new DOMException('no', 'InvalidStateError'))
+      await expect(twoTools().mount()).rejects.toThrow('could not register "a"')
+      await expect(hold.mock.calls[0]![0]).resolves.toBeUndefined()
+    })
+
+    it('registers in a Chrome that lacks it, or refuses it', async () => {
+      const context = modelContext() as { waitForToolsUntil?: unknown }
+      delete context.waitForToolsUntil
+      await twoTools().mount()
+      expect(await names()).toEqual(['a', 'b'])
+
+      installTestModelContext()
+      spyOnHold().mockImplementation(() => {
+        throw new DOMException('denied', 'NotAllowedError')
+      })
+      await twoTools().mount()
+      expect(await names()).toEqual(['a', 'b'])
+    })
   })
 
   it('can retry a registration that failed', async () => {

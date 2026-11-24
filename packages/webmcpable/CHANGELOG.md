@@ -38,8 +38,7 @@
   `unmount()`, or on a `revalidate()` where `when` stopped holding.
   
   A new conformance lane, `e2e/cdp.conformance.ts`, drives the built bundle over
-  Chrome's CDP `WebMCP` domain the way a client such as
-  [agent-browser](https://github.com/vercel-labs/agent-browser) does. Its
+  Chrome's CDP `WebMCP` domain the way an external client does. Its
   measurements are now in the README: a JSON result reaches a client structured, a
   thrown message reaches it as a completed call carrying the text, and a cancelled
   invocation leaves the page's handler running.
@@ -163,4 +162,4 @@
 - f5ed130: `when` can return a reason string as well as a boolean. `false` still
   unregisters the tool; a string keeps it registered and refuses every call with
   that text, so an agent reads why a capability is unavailable instead of watching
-  it vanish from the list (webmachinelearning/webmcp#262).
+  it vanish from the list.
