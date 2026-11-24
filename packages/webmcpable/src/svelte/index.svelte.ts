@@ -1,4 +1,4 @@
-import { tools, type InputSchema, type RegistryOptions, type ToolDef } from '../tools'
+import { tools, type RegistryOptions, type ToolDef } from '../tools'
 
 const reportRegistrationError = (error: unknown) => {
   console.error('[webmcpable] Tool registration failed.', error)
@@ -11,7 +11,7 @@ const reportRegistrationError = (error: unknown) => {
  * agent's tool list follows the UI with no manual `revalidate()`. Call it in a
  * component, or inside `$effect.root` for app-level tools.
  */
-export function useTools<T extends Record<string, InputSchema | undefined>>(
+export function useTools<T extends Record<string, unknown>>(
   defs: { [K in keyof T]: ToolDef<T[K]> },
   options?: RegistryOptions,
 ): void {

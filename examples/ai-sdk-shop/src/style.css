@@ -1,0 +1,92 @@
+:root {
+  --frost: #dbe7ea;
+  --leaf: #14382f;
+  --paper: #fff;
+  --marigold: #e59a00;
+  --beet: #8e1f4f;
+  --shade: #b9ced3;
+  --ds-ink: var(--leaf);
+  --ds-ink-soft: #35574e;
+  --ds-paper: var(--paper);
+  --ds-paper-2: var(--frost);
+  --ds-surface: var(--paper);
+  --ds-line: #6f8f93;
+  --ds-accent: var(--leaf);
+  --ds-accent-ink: #0c251f;
+  --ds-accent-soft: var(--frost);
+  --ds-on-accent: var(--paper);
+  --ds-scrim: rgb(20 56 47 / .55);
+  --ds-radius: 4px;
+  --ds-font: 'Gill Sans', 'Gill Sans Nova', 'Gill Sans MT', 'Trebuchet MS', sans-serif;
+  --ds-font-mono: ui-monospace, Menlo, monospace;
+  color: var(--ds-ink);
+  background: var(--frost);
+  font: 1rem/1.5 var(--ds-font);
+}
+* { box-sizing: border-box; }
+body { margin: 0; }
+h1, h2, h3, p, ul, ol { margin: 0; padding: 0; }
+ul, ol { list-style: none; }
+button { cursor: pointer; }
+button:disabled { cursor: default; opacity: .45; }
+:focus-visible { outline: 3px solid var(--marigold); outline-offset: 2px; }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) 21rem 17rem; gap: 2.5rem; max-width: 96rem; min-height: 100vh; margin: auto; padding: 2.5rem; }
+h1 { font-size: 3.25rem; line-height: 1; letter-spacing: -.02em; }
+h2 { font-size: 1.375rem; line-height: 1.2; }
+header p { margin-top: .75rem; font-size: 1.125rem; max-width: 34ch; }
+
+.shelf { display: grid; grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); gap: 1.25rem; margin-top: 2.5rem; }
+.packet { display: flex; flex-direction: column; background: var(--packet); border-top: .6rem dotted var(--frost); box-shadow: inset 0 .5rem 0 -.2rem rgb(255 255 255 / .28); }
+.packet svg { width: 62%; margin: 1.75rem auto; fill: var(--paper); }
+.packet-label { flex: 1; display: flex; flex-direction: column; margin: 0 .6rem .6rem; padding: .9rem; background: var(--paper); }
+.packet-label h3 { font-size: 1.25rem; line-height: 1.15; }
+.packet-label p { margin: .35rem 0 1rem; font-size: .9375rem; line-height: 1.35; }
+.packet-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-top: auto; }
+.stepper { display: flex; align-items: center; gap: .25rem; }
+.stepper button { width: 2rem; height: 2rem; padding: 0; border: 0; border-radius: var(--ds-radius); background: var(--frost); color: inherit; font: inherit; }
+.stepper output { min-width: 1.75rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+.basket { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; min-height: 4rem; margin-top: 2rem; padding-top: 1.25rem; border-top: 2px solid var(--leaf); }
+.basket p { flex: 1 1 12rem; }
+.basket .outcome { flex-basis: 100%; font-weight: 700; }
+.basket strong { font-size: 1.5rem; }
+
+.chat { display: flex; flex-direction: column; height: calc(100vh - 5rem); position: sticky; top: 2.5rem; }
+.thread { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .75rem; margin: 1rem 0; }
+.thread p { max-width: 92%; padding: .6rem .85rem; border-radius: 10px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.thread .user { align-self: flex-end; background: var(--leaf); color: var(--paper); border-bottom-right-radius: 2px; }
+.thread .assistant { align-self: flex-start; background: var(--paper); border-bottom-left-radius: 2px; }
+.thread .problem { max-width: 100%; background: var(--beet); color: var(--paper); border-radius: 4px; }
+.thread .waiting { padding: 0; }
+.suggestions { display: flex; flex-direction: column; align-items: flex-start; gap: .5rem; }
+.chat form { display: flex; gap: .5rem; }
+.chat form button { height: 2.75rem; }
+/* ui-input puts its slot on the native input, which the theme's selector misses. */
+input[data-slot='input'] { flex: 1; min-width: 0; height: 2.75rem; padding: 0 .75rem; border: 1px solid var(--ds-line); border-radius: var(--ds-radius); background: var(--ds-paper); color: inherit; font: inherit; }
+
+.roll { align-self: start; position: sticky; top: 2.5rem; max-height: calc(100vh - 5rem); display: flex; flex-direction: column; padding: 1.25rem 1.1rem 1.75rem; background: var(--paper);
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - .6rem), 95% 100%, 90% calc(100% - .6rem), 85% 100%, 80% calc(100% - .6rem), 75% 100%, 70% calc(100% - .6rem), 65% 100%, 60% calc(100% - .6rem), 55% 100%, 50% calc(100% - .6rem), 45% 100%, 40% calc(100% - .6rem), 35% 100%, 30% calc(100% - .6rem), 25% 100%, 20% calc(100% - .6rem), 15% 100%, 10% calc(100% - .6rem), 5% 100%, 0 calc(100% - .6rem)); }
+.roll > p { margin-top: .35rem; font-size: .9375rem; line-height: 1.35; }
+.roll ol { overflow-y: auto; margin-top: 1rem; font: .8125rem/1.45 var(--ds-font-mono); }
+.roll li { padding: .7rem 0; border-top: 1px dashed var(--shade); overflow-wrap: anywhere; animation: print .25s ease-out; }
+.roll-head { display: flex; justify-content: space-between; gap: .5rem; font-weight: 700; }
+.roll-head span:last-child { font-weight: 400; white-space: nowrap; }
+.roll summary { cursor: pointer; }
+.roll pre { margin: .25rem 0 0; white-space: pre-wrap; font: inherit; }
+@keyframes print { from { opacity: 0; transform: translateY(-.5rem); } }
+
+.approval-lines { margin-top: 1rem; }
+.approval-total { font-size: 2rem; line-height: 1.2; }
+.approval-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1.25rem; }
+
+@media (max-width: 75rem) {
+  main { grid-template-columns: minmax(0, 1fr) 20rem; }
+  .roll { grid-column: 1 / -1; position: static; max-height: 26rem; }
+}
+@media (max-width: 50rem) {
+  main { grid-template-columns: minmax(0, 1fr); padding: 1.25rem; }
+  .chat { position: static; height: 30rem; }
+  h1 { font-size: 2.5rem; }
+}
+@media (prefers-reduced-motion: reduce) { .roll li { animation: none; } }
