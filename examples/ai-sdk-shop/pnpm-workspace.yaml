@@ -1,0 +1,6 @@
+# Its own root, so releases and CI at the top level leave this example alone.
+packages:
+  - .
+allowBuilds:
+  esbuild: true
+  msgpackr-extract: false
