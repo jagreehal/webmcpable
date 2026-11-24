@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { test as base, type Page } from '@playwright/test'
+import type { ToolAnnotations } from '../tools'
 import type { RecordedCall } from './index'
 
 /**
@@ -13,7 +14,7 @@ import type { RecordedCall } from './index'
  * instead, so a suite that never sees a flagged Chrome can still call the tools
  * an agent would call, and assert that the UI moved with them.
  *
- * The fake is the one measured against Chrome 155 in `e2e/*.conformance.ts`,
+ * The fake is the one measured against Chrome 160 in `e2e/*.conformance.ts`,
  * so its quirks are the browser's quirks: JSON-serialised input, a
  * name-sorted tool list, a canned message when a handler throws.
  */
@@ -50,13 +51,14 @@ const browserScript = (): string => {
 export type { RecordedCall } from './index'
 
 export interface PageTool {
-  /** Chrome 155 returns these three, and returns all three once any are sent. */
-  annotations?: { consequentialHint: boolean; readOnlyHint: boolean; untrustedContentHint: boolean }
+  /** Chrome returns these four, and returns all four once any are sent. */
+  annotations?: Required<ToolAnnotations>
   description: string
   /** Always an object. Chrome 151-154 returned a JSON string; this parses it. */
   inputSchema: Record<string, unknown> | undefined
   name: string
   origin: string
+  outputSchema: Record<string, unknown> | undefined
   title: string
 }
 
@@ -112,17 +114,18 @@ const pageModelContext = (page: Page): PageModelContext => ({
           inputSchema =
             typeof tool.inputSchema === 'string'
               ? (JSON.parse(tool.inputSchema) as Record<string, unknown>)
-              : (tool.inputSchema as Record<string, unknown> | undefined)
+              : ((tool.inputSchema ?? undefined) as Record<string, unknown> | undefined)
         } catch {
           inputSchema = undefined
         }
         return {
-          // All three hints are present once any are sent, so narrow the
+          // All four are present once any are sent, so narrow the
           // draft's all-optional shape to what a caller can actually rely on.
           ...(tool.annotations
             ? {
                 annotations: {
                   consequentialHint: tool.annotations.consequentialHint === true,
+                  debugging: tool.annotations.debugging === true,
                   readOnlyHint: tool.annotations.readOnlyHint === true,
                   untrustedContentHint: tool.annotations.untrustedContentHint === true,
                 },
@@ -132,6 +135,7 @@ const pageModelContext = (page: Page): PageModelContext => ({
           inputSchema,
           name: tool.name,
           origin: tool.origin,
+          outputSchema: (tool.outputSchema ?? undefined) as Record<string, unknown> | undefined,
           title: tool.title,
         }
       })

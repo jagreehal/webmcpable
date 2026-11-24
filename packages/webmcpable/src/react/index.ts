@@ -36,9 +36,11 @@ export function useTools<T extends Record<string, InputSchema | undefined>>(
         const def = () => latest.current[name] as ToolDef
         return {
           get annotations() { return def().annotations },
+          get confirm() { return def().confirm },
           get description() { return def().description },
           get exposedTo() { return def().exposedTo },
           get input() { return def().input },
+          get outputSchema() { return def().outputSchema },
           get title() { return def().title },
           // Always resolve against the newest closure, so handlers and
           // predicates see current props and state rather than mount-time
@@ -59,6 +61,8 @@ export function useTools<T extends Record<string, InputSchema | undefined>>(
       get confirm() {
         return latestOptions.current.confirm
       },
+      // The registry reads this once, so look up the latest render's here.
+      onCall: (event) => latestOptions.current.onCall?.(event),
       get titles() {
         return latestOptions.current.titles
       },

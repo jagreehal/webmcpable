@@ -4,7 +4,7 @@ import { tools } from '../tools'
 import { installTestModelContext, toolSchemas } from './index'
 import { modelContext } from '../model-context'
 
-// This fake covers the Chrome 155 registration, inspection, and execution
+// This fake covers the registration, inspection, and execution
 // behavior that application tests rely on. e2e/CHROME-CONFORMANCE.md records
 // each measurement.
 describe('installTestModelContext', () => {
@@ -91,7 +91,8 @@ describe('installTestModelContext', () => {
     await modelContext().registerTool(tool('a', () => 'ok'))
     const [t] = await modelContext().getTools()
     // @ts-expect-error deliberately passing the shape Chrome 152-154 took
-    await expect(modelContext().executeTool(t!, '{}')).rejects.toThrow(/value is not an object/)
+    await expect(modelContext().executeTool(t!, '{}')).rejects.toThrow(/parameter 2 is not of type 'object'/)
+    await expect(modelContext().executeTool(t!, { toJSON() {} })).rejects.toThrow(/toJSON\(\) returns undefined/)
     await expect(modelContext().executeTool(t!, {})).resolves.toBe('ok')
     await expect(modelContext().executeTool(t!)).resolves.toBe('ok')
   })
@@ -142,15 +143,15 @@ describe('installTestModelContext', () => {
     }
   })
 
-  it('strips unknown annotations and debugging, and normalises the known three, like Chrome', async () => {
+  it('strips unknown annotations and normalises the four in the draft, like Chrome', async () => {
     await modelContext().registerTool({
       ...tool('a', () => 'ok'),
-      // Chrome drops destructiveHint and debugging
       annotations: { debugging: true, destructiveHint: true, readOnlyHint: true } as WebMCP.ToolAnnotations,
     })
     const [t] = await modelContext().getTools()
     expect(t!.annotations).toEqual({
       consequentialHint: false,
+      debugging: true,
       readOnlyHint: true,
       untrustedContentHint: false,
     })
@@ -184,7 +185,47 @@ describe('installTestModelContext', () => {
   it('returns no annotations when none were sent', async () => {
     await modelContext().registerTool(tool('a', () => 'ok'))
     const [t] = await modelContext().getTools()
-    expect(t!.annotations).toBeUndefined()
+    expect(t!.annotations).toBeNull()
+  })
+
+  it('returns null for schemas that were not sent, and a copy of those that were', async () => {
+    const outputSchema = { type: 'string' }
+    await modelContext().registerTool({ description: 'x', execute: () => 'ok', name: 'bare' })
+    await modelContext().registerTool({ description: 'x', execute: () => 'ok', name: 'full', outputSchema })
+    const [bare, full] = await modelContext().getTools()
+    expect([bare!.inputSchema, bare!.outputSchema]).toEqual([null, null])
+    expect(full!.outputSchema).toEqual(outputSchema)
+    expect(full!.outputSchema).not.toBe(outputSchema)
+  })
+
+  it('returns a Tool that cannot be serialised, spread or cloned, like Chrome 160', async () => {
+    await modelContext().registerTool(tool('a', () => 'ok'))
+    const [t] = await modelContext().getTools()
+    expect(JSON.stringify(t)).toBe('{}')
+    expect({ ...t }).toEqual({})
+    expect(() => structuredClone(t)).toThrow()
+    expect(t!.source).toBe(window)
+    expect(t!.window).toBeUndefined()
+    await expect(modelContext().executeTool({ ...t! }, {})).rejects.toThrow(/not of type 'Tool'/)
+  })
+
+  it('accepts waitForToolsUntil and handles a rejected promise, like Chrome 160', async () => {
+    expect(() => modelContext().waitForToolsUntil!(Promise.reject(new Error('late')))).not.toThrow()
+    await expect(modelContext().getTools()).resolves.toEqual([])
+  })
+
+  it('runs the registration getTools returned, never a later tool of the same name', async () => {
+    const controller = new AbortController()
+    // The same object both times, so only the registration can tell them apart.
+    const definition = tool('a', () => 'ok')
+    await modelContext().registerTool(definition, { signal: controller.signal })
+    const [stale] = await modelContext().getTools()
+    controller.abort()
+    await modelContext().registerTool(definition)
+    await expect(modelContext().executeTool(stale!, {})).rejects.toMatchObject({ name: 'NotFoundError' })
+    const [fresh] = await modelContext().getTools()
+    await expect(modelContext().executeTool(fresh!, {})).resolves.toBe('ok')
+    expect(mc.calls).toHaveLength(1)
   })
 
   it('returns inputSchema as an object copy, as Chrome 155 does', async () => {
@@ -237,12 +278,7 @@ describe('installTestModelContext', () => {
     expect(t!.origin).toBe(location.origin)
   })
 
-  // The following are transcribed from web-platform-tests/wpt/webmcp/imperative.
-  // WPT is the cross-browser ground truth; the fake has to agree with it or a
-  // green test suite means nothing.
-
   it('returns tools in lexicographical order, not registration order', async () => {
-    // wpt: getTools.https.html
     await modelContext().registerTool(tool('c', () => 'ok'))
     await modelContext().registerTool(tool('b', () => 'ok'))
     await modelContext().registerTool(tool('a', () => 'ok'))
@@ -250,7 +286,6 @@ describe('installTestModelContext', () => {
   })
 
   it('keeps lexicographical order after one tool is unregistered', async () => {
-    // wpt: getTools.https.html
     const controller = new AbortController()
     await modelContext().registerTool(tool('c', () => 'ok'))
     await modelContext().registerTool(tool('b', () => 'ok'), { signal: controller.signal })
@@ -260,7 +295,6 @@ describe('installTestModelContext', () => {
   })
 
   it('accepts a JSON array as input, because arrays are objects', async () => {
-    // wpt: object-arguments.https.html
     let received: unknown
     await modelContext().registerTool(
       tool('a', (input) => {
@@ -350,11 +384,11 @@ describe('toolSchemas', () => {
     })
   })
 
-  it('survives JSON.stringify, which a raw RegisteredTool does not', async () => {
+  it('survives JSON.stringify, which a raw Tool does not', async () => {
     await tools({ a: { description: 'a tool', execute: () => 'a' } }).mount()
 
     const [registered] = await modelContext().getTools()
-    expect(() => JSON.stringify(registered)).toThrow()
+    expect(JSON.stringify(registered)).toBe('{}')
     expect(JSON.stringify(await toolSchemas())).toContain('"name":"a"')
   })
 })

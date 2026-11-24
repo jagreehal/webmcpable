@@ -40,6 +40,7 @@ test('the application mounts, name-sorted, with the schema already parsed', asyn
   })
   expect(listed[1]!.annotations).toEqual({
     consequentialHint: false,
+    debugging: false,
     readOnlyHint: true,
     untrustedContentHint: false,
   })

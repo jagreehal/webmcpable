@@ -59,8 +59,7 @@ try {
   process.exitCode = 1
   const failure = error as { _tag?: string; message?: string }
 
-  // Anything without a tag is a bug rather than a user error: rethrow so the
-  // stack survives.
+  // Anything without a tag rethrows, so the stack survives.
   if (failure._tag === 'SnapshotMissing') {
     process.stderr.write(`${failure.message}. Run \`webmcpable spec-pin\` to create one.\n`)
   } else if (failure._tag === 'ReadFailure' || failure._tag === 'SpecFetchFailure') {

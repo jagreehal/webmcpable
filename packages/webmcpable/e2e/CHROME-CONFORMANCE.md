@@ -2,18 +2,11 @@
 
 | Key | Value |
 | --- | --- |
-| Date | 2026-10-15T17:59:02.515Z |
-| Version | 0.6.0 |
-| Git SHA | 2639e1d |
+| Date | 2026-11-24T21:51:08.212Z |
+| Version | 0.7.0 |
+| Git SHA | 214f5a0 |
 
 ## cdp.conformance.ts
-
-### ✅ a cancelled invocation aborts the handler’s signal
-
-- **Given** a tool that never resolves and watches the signal it was handed
-- **When** a client starts it and then cancels the invocation
-- **Then** the client is told the invocation was cancelled
-- **And** and the handler’s signal aborts, so it can stop the work
 
 ### ✅ a webmcpable handler receives an AbortSignal as its second argument
 
@@ -27,6 +20,13 @@
 - **Given** a tool registered with the raw browser API, counting its arguments
 - **When** a client invokes it
 - **Then** the handler saw two arguments: the input and an options object, as the draft specifies
+
+### ✅ a result reaches the client whether or not it matches the output schema
+
+- **Given** two webmcpable tools with an output schema, one of which throws
+- **When** a client invokes both
+- **Then** the matching result arrives structured
+- **And** the error text arrives as a completed call
 
 ### ✅ a thrown error reaches the client as a completed call carrying the message
 
@@ -49,6 +49,13 @@
 - **Given** a long-running tool whose `when` stops holding while it runs
 - **When** a client starts the call, and the page then revalidates the tool away
 - **Then** the handler’s signal aborts, so it can stop work the user can no longer reach
+
+### ✅ a cancelled invocation aborts the handler’s signal
+
+- **Given** a tool that never resolves and watches the signal it was handed
+- **When** a client starts it and then cancels the invocation
+- **Then** the client is told the invocation was cancelled
+- **And** and the handler’s signal aborts, so it can stop the work
 
 ### ✅ a same-origin child frame’s tools never reach the client
 
@@ -74,12 +81,6 @@
 - **When** that state changes and the registry revalidates
 - **Then** the browser hands the agent the new description
 
-### ✅ titles: "off" keeps a friendlier label out of the browser descriptor
-
-- **Given** a tool registered with a title that does not match its name
-- **When** the registry is mounted with titles off
-- **Then** the browser stores an empty title, so it cannot promote the label
-
 ### ✅ a raw JSON Schema still rejects a call missing a required property
 
 - **Given** a tool typed with plain JSON Schema rather than a Standard Schema
@@ -87,10 +88,11 @@
 - **Then** the agent is told which property is missing
 - **And** the handler never saw the call
 
-### ✅ a two-face tool is flagged as a label mismatch, and a poisoned description is flagged too
+### ✅ titles: "off" keeps a friendlier label out of the browser descriptor
 
-- **Given** a tool whose title, name, and description do not agree
-- **Then** the debug findings name the two-face label, the hidden instruction, and the swap
+- **Given** a tool registered with a title that does not match its name
+- **When** the registry is mounted with titles off
+- **Then** the browser stores an empty title, so it cannot promote the label
 
 ### ✅ confirm refuses a mutating call the user did not approve
 
@@ -99,39 +101,17 @@
 - **Then** the handler never ran
 - **And** the agent is told the call was not confirmed
 
-## declarative.conformance.ts
+### ✅ a two-face tool is flagged as a label mismatch, and a poisoned description is flagged too
 
-### ✅ a <form toolname> is a tool like any other
-
-- **Given** a form carrying toolname and tooldescription, and no script
-- **When** the agent lists the tools
-- **Then** the browser has registered it, indistinguishable from an imperative tool
-
-### ✅ a declarative tool without toolautosubmit waits for the human
-
-- **Given** a form with no toolautosubmit attribute
-- **When** the agent executes it and waits three seconds
-- **Then** nothing comes back: the call is parked until someone presses the button
-
-### ✅ a form and a registered tool cannot share a name
-
-- **Given** a page whose form already claims "book_table"
-- **When** the page registers a tool of the same name through webmcpable
-- **Then** the browser refuses it, and webmcpable says which name lost
-- **And** the form keeps the name — the imperative tool is simply absent
+- **Given** a tool whose title, name, and description do not agree
+- **Then** the debug findings name the two-face label, the hidden instruction, and the swap
 
 ## model-context.conformance.ts
-
-### ✅ the navigator aliases are gone
-
-- **Given** Chrome 152, where the draft moved to document.modelContext
-- **Then** navigator.modelContext no longer aliases it
-- **And** the undocumented navigator.modelContextTesting is also gone
 
 ### ✅ Chrome is new enough to carry the WebMCP implementation
 
 - **Given** a Chrome launched with the WebMCP flags
-- **Then** the major version is at least 155
+- **Then** the major version is at least 158
 - **And** document.modelContext is present
 
 ### ✅ executeTool takes an object and rejects a JSON string
@@ -140,7 +120,23 @@
 - **When** the agent calls it each way
 - **Then** the object form the draft specifies works
 - **And** the JSON string Chrome 152-154 required is now a TypeError
+- **And** a toJSON that returns undefined is a TypeError
 - **And** omitted input arrives as an empty object, and an array passes through
+
+### ✅ executeTool serialises input through JSON
+
+- **Given** a raw tool that echoes the input its handler received
+- **When** the agent passes values JSON cannot represent faithfully
+- **Then** a Date arrives as its ISO string
+- **And** NaN and Infinity arrive as null
+- **And** an undefined property is dropped
+- **And** a circular object and a BigInt are TypeErrors
+
+### ✅ the navigator aliases are gone
+
+- **Given** Chrome 152, where the draft moved to document.modelContext
+- **Then** navigator.modelContext no longer aliases it
+- **And** the undocumented navigator.modelContextTesting is also gone
 
 ### ✅ a handler result reaches the agent as a string
 
@@ -152,21 +148,6 @@
 - **And** undefined becomes an empty result, because webmcpable normalises it
 - **And** a thrown message survives, because webmcpable returns it as text
 
-### ✅ registerTool snapshots inputSchema through JSON
-
-- **Given** schemas with a toJSON, values JSON cannot hold, and one mutated after registering
-- **When** the agent lists them
-- **Then** getTools returns the JSON taken at registration: toJSON applied, Date a string, NaN null, undefined gone, later mutation unseen
-
-### ✅ executeTool serialises input through JSON
-
-- **Given** a raw tool that echoes the input its handler received
-- **When** the agent passes values JSON cannot represent faithfully
-- **Then** a Date arrives as its ISO string
-- **And** NaN and Infinity arrive as null
-- **And** an undefined property is dropped
-- **And** a circular object and a BigInt are TypeErrors
-
 ### ✅ execute receives a signal that a caller’s abort leaves alone
 
 - **Given** a raw tool that never resolves and records its arguments
@@ -175,21 +156,50 @@
 - **And** executeTool rejects with the caller’s reason
 - **And** and the handler’s signal stays unaborted: only a CDP cancel reaches it
 
-### ✅ a RegisteredTool is shaped the way webmcpable assumes
+### ✅ tools() passes outputSchema on and holds readiness while it registers
 
-- **Given** a tool registered with debugging and every annotation server-side MCP defines
+- **Given** two tools registered through webmcpable, one with an output schema
+- **Then** from 160 the browser returns the output schema
+- **And** from 160 mount holds readiness once, and a sync that registers no tools leaves it alone
+- **And** the browser handles a rejected promise, and getTools in the page does not wait for a pending one
+
+### ✅ registerTool snapshots inputSchema through JSON
+
+- **Given** schemas with a toJSON, values JSON cannot hold, and one mutated after registering
+- **When** the agent lists them
+- **Then** getTools returns the JSON taken at registration: toJSON applied, Date a string, NaN null, undefined gone, later mutation unseen
+
+### ✅ a Tool is shaped the way webmcpable assumes
+
+- **Given** a tool registered with debugging and every annotation server-side MCP defines, and one with neither
 - **Then** inputSchema comes back as an object, as the draft types it
-- **And** Chrome returns its hints with defaults, drops server-side MCP names, and keeps debugging from 156
-- **And** it carries a Window, so JSON.stringify throws
+- **And** Chrome returns its hints with defaults and drops server-side MCP names
+- **And** its members are getters: JSON.stringify gives {}, spread copies nothing, structuredClone throws
 - **And** title defaults to an empty string
-- **And** outputSchema is dropped without an error, the way invented annotations are
-- **And** the key set matches the pinned WebIDL
+- **And** from 160 it carries source and outputSchema; before that, window and no outputSchema
+- **And** what was not sent is null
 
 ### ✅ getTools returns lexicographical order, not registration order
 
 - **Given** three tools registered out of alphabetical order
 - **When** the agent lists them
 - **Then** they come back sorted by name
+
+### ✅ a navigating tool keeps a synchronous result and loses an awaited one
+
+- **Given** two tools that navigate away, one returning at once and one awaiting first
+- **When** the agent calls the one that returns in the same turn
+- **Then** the result was delivered before the unload
+- **And** the same call awaits anything after navigating
+- **And** nothing was recorded: the unload took the result with it
+
+### ✅ executeTool runs the registration getTools returned
+
+- **Given** a Tool whose registration ended and whose name was registered again
+- **When** the agent executes it, and a copy of a live one
+- **Then** the stale Tool is a NotFoundError, even with the name taken again
+- **And** a copy is a TypeError
+- **And** a fresh one runs
 
 ### ✅ registration rejects the same things the fake rejects
 
@@ -210,10 +220,23 @@
 - **And** a plain http origin is refused
 - **And** there is no wildcard — "*" is refused the same way
 
-### ✅ a navigating tool keeps a synchronous result and loses an awaited one
+## declarative.conformance.ts
 
-- **Given** two tools that navigate away, one returning at once and one awaiting first
-- **When** the agent calls the one that returns in the same turn
-- **Then** the result was delivered before the unload
-- **And** the same call awaits anything after navigating
-- **And** nothing was recorded: the unload took the result with it
+### ✅ a form and a registered tool cannot share a name
+
+- **Given** a page whose form already claims "book_table"
+- **When** the page registers a tool of the same name through webmcpable
+- **Then** the browser refuses it, and webmcpable says which name lost
+- **And** the form keeps the name — the imperative tool is simply absent
+
+### ✅ a <form toolname> is a tool like any other
+
+- **Given** a form carrying toolname and tooldescription, and no script
+- **When** the agent lists the tools
+- **Then** the browser has registered it, indistinguishable from an imperative tool
+
+### ✅ a declarative tool without toolautosubmit waits for the human
+
+- **Given** a form with no toolautosubmit attribute
+- **When** the agent executes it and waits three seconds
+- **Then** nothing comes back: the call is parked until someone presses the button

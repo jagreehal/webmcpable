@@ -23,12 +23,17 @@ type Infer<S> = S extends { '~standard': unknown }
 
 export interface EffectToolDef<S extends InputSchema | undefined = InputSchema | undefined> {
   annotations?: ToolAnnotations
+  /** Ask before this tool runs. Wins over the registry and `readOnlyHint`. */
+  confirm?: ToolDef['confirm']
   description: string
   execute: (
     input: Infer<S>,
     options: { signal: AbortSignal },
   ) => Effect.Effect<unknown, unknown>
+  /** Origins in the current document tree that may discover and call this tool. */
+  exposedTo?: Array<string>
   input?: S
+  outputSchema?: InputSchema
   title?: string
   /** Re-evaluated on every watched change. A string refuses with that reason. */
   when?: () => Effect.Effect<boolean | string>
@@ -41,6 +46,7 @@ export interface EffectRegistry {
 
 export interface EffectToolsOptions {
   confirm?: RegistryOptions['confirm'] | undefined
+  onCall?: RegistryOptions['onCall'] | undefined
   titles?: RegistryOptions['titles'] | undefined
   /** Changes to any of these re-evaluate every `when` predicate. */
   // `any` rather than `unknown`: SubscriptionRef is invariant, so `unknown`
@@ -70,6 +76,9 @@ export const effectTools = Effect.fn('effectTools')(function* <
         description: def.description,
         ...(def.title !== undefined && { title: def.title }),
         ...(def.input !== undefined && { input: def.input }),
+        ...(def.confirm !== undefined && { confirm: def.confirm }),
+        ...(def.exposedTo && { exposedTo: def.exposedTo }),
+        ...(def.outputSchema && { outputSchema: def.outputSchema }),
         ...(def.annotations && { annotations: def.annotations }),
         // `when` must answer synchronously: the platform decides registration
         // at call time, so there is nowhere to await.
@@ -88,7 +97,7 @@ export const effectTools = Effect.fn('effectTools')(function* <
     ]),
   ) as Record<string, ToolDef>
 
-  const registry = tools(plain, { confirm: options.confirm, titles: options.titles })
+  const registry = tools(plain, { confirm: options.confirm, onCall: options.onCall, titles: options.titles })
 
   // Tools come down when the scope closes.
   yield* Effect.addFinalizer(() => Effect.sync(() => registry.unmount()))

@@ -83,15 +83,15 @@ try {
   shape += `getTools(): ${tools.length} tool(s)\n`;
   probe = tools.find((t) => t.name === 'probe') ?? null;
   if (probe) {
-    // A RegisteredTool holds an owner `window`, so JSON.stringify throws.
+    // A Tool's members are prototype getters, so JSON.stringify gives {}.
     // Pick fields explicitly to see what the browser actually kept.
     const safe = {};
-    for (const k of Object.keys(probe)) {
+    for (const k in probe) {
       const v = probe[k];
       safe[k] = (v && typeof v === 'object' && 'document' in v) ? '[Window]' : v;
     }
     shape += `\nprobe (fields picked individually):\n${JSON.stringify(safe, null, 2)}`;
-    shape += `\n\nkeys: ${Object.keys(probe).join(', ')}`;
+    shape += `\n\nkeys: ${Object.keys(safe).join(', ')}`;
     shape += `\n\nannotations sent:     {"readOnlyHint":true,"destructiveHint":true}`;
     shape += `\nannotations returned: ${JSON.stringify(probe.annotations ?? null)}`;
   } else {

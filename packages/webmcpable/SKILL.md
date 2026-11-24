@@ -60,6 +60,13 @@ Measured in Chrome 151/152. This is why the library exists; do not hand-roll
 `webmcpable` normalizes all of these: return a string, a JSON-compatible value,
 or `undefined`, and throw normally — the agent reads `Error: out of stock`.
 
+Set `outputSchema` (JSON Schema or a Standard Schema) to describe a successful
+result. Chrome 160 and later hand it to the agent. Refusals and errors still
+return text, so say what went wrong there.
+
+The registry calls `waitForToolsUntil()` in Chrome 160 while it registers tools.
+You need to call it only for tools you register with `registerTool()`.
+
 Only four annotations exist: `readOnlyHint`, `untrustedContentHint`,
 `consequentialHint`, and `debugging`. Set `untrustedContentHint` on any tool
 returning user content or fetched data, and `consequentialHint` on tools that
@@ -182,11 +189,22 @@ expect(mc.calls).toEqual([
 ])
 ```
 
-It reproduces Chrome 155's object arguments, `(input, { signal })` calls,
-annotation normalization, serialization, error handling and lexicographical ordering. Back it with a
+It reproduces Chrome 160's `Tool` objects, along with object arguments,
+`(input, { signal })` calls, annotation normalization, serialization, error
+handling and lexicographical ordering. Back it with a
 conformance lane against real Chrome (`pnpm --filter webmcpable test:conformance`
 in this repo), including one case driven over CDP the way an agent drives it —
 in-page and out-of-process are not the same code path.
+
+Chrome 158 and later return `Tool` objects from `getTools()`:
+
+- Read each member you need. `JSON.stringify(tool)` gives `{}`, and a spread
+  copies no members.
+- Use `tool.source ?? tool.window`. Chrome 160 renames `window` to `source`.
+- Expect null for `inputSchema`, `outputSchema` and `annotations` a tool omits
+  in Chrome 160.
+- Pass `executeTool()` the `Tool` you got from `getTools()`. A copy gives a
+  `TypeError`, and a `Tool` you have since unregistered gives a `NotFoundError`.
 
 For an end-to-end test, the fake has to be in the *browser*, not the test
 process — and Playwright's bundled Chromium has no WebMCP at all. Use
@@ -213,8 +231,7 @@ thing for a suite with its own fixtures — call it before the first `goto`.
 
 `toolSchemas()` writes the registry's schemas to a file for
 `webmcp-evals`;
-`JSON.stringify(await getTools())` cannot stand in — a `RegisteredTool` carries
-its owner `Window` and throws on a circular structure.
+`JSON.stringify(await getTools())` gives `{}` for each tool.
 
 ## Prove it before shipping
 
@@ -250,7 +267,7 @@ Lighthouse runs "Agentic browsing" audits. To try the tools by hand, enable
 ## Security boundary
 
 The user's only checkpoint is the browser's consent dialogue, which the page
-cannot influence — a `RegisteredTool` carries no reference to the code behind it.
+cannot influence: a `Tool` carries no reference to the code behind it.
 `webmcpable` keeps an honest site honest: refusal at execution time when `when`
 stops holding, re-registration when a descriptor changes, `{ titles: 'off' }` to
 withhold a friendlier label, and `confirm` as a second check bound to the
