@@ -21,7 +21,7 @@ export function useAssistant() {
 
   useEffect(() => {
     if (!document.modelContext?.getTools) {return}
-    // The AI SDK types still ask for `window`; it only passes the tool back.
+    // Chrome types `inputSchema` as `object | null`; the AI SDK wants `object | undefined`.
     const modelContext = forAiSdk(document.modelContext as unknown as ModelContext)
     let closed = false
     let connected: MCPClient | undefined
